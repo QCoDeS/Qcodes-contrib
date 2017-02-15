@@ -1,0 +1,16 @@
+{
+    "core": {
+        "legacy_mp": false,
+        "loglevel": "DEBUG"
+    },
+    "user": {
+        "data_location": "/Users/Natalie/Documents/PhD/Qdev/QcodesRelated/Qcodes_init_testing/{sample_name}/data/{{counter}}",
+        "log_location": "/Users/Natalie/Documents/PhD/Qdev/QcodesRelated/Qcodes_init_testing/{sample_name}/log_files/",
+        "pulse_location": "/Users/Natalie/Documents/PhD/Qdev/QcodesRelated/Qcodes_init_testing/{sample_name}/pulse_lib/",
+        "analysis_location": "/Users/Natalie/Documents/PhD/Qdev/QcodesRelated/Qcodes_init_testing/{sample_name}/analysis/"
+    },
+    "gui": {
+        "plotlib": "matplotlib",
+        "notebook": true
+    }
+}

@@ -1,0 +1,89 @@
+{
+    "type": "object",
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "required": [
+        "gui",
+        "core",
+        "user"
+    ],
+    "properties": {
+        "core": {
+            "description": "controls core settings of qcodes",
+            "type": "object",
+            "required": [
+                "legacy_mp",
+                "loglevel"
+            ],
+            "properties": {
+                "legacy_mp": {
+                    "type": "boolean",
+                    "description": "control legacy buggy multiprocess",
+                    "default": false
+                },
+                "loglevel": {
+                    "type": "string",
+                    "description": "control logging  level",
+                    "enum": [
+                        "CRITICAL",
+                        "ERROR",
+                        "WARNING",
+                        "INFO",
+                        "DEBUG"
+                    ],
+                    "default": "DEBUG"
+                }
+            }
+        },
+        "user": {
+            "type": "object",
+            "description": "controls user settings of qcodes",
+            "properties": {
+                "data_location": {
+                    "description": "Location of data",
+                    "default": "/Users/Natalie/Documents/PhD/Qdev/Qcodes related/Qcodes_init_testing/",
+                    "type": "string"
+                },
+                "log_location": {
+                    "description": "Location of log files",
+                    "default": "/Users/Natalie/Documents/PhD/Qdev/Qcodes related/Qcodes_init_testing/",
+                    "type": "string"
+                },
+                "pulse_location": {
+                    "description": "Location of AWG files",
+                    "default": "/Users/Natalie/Documents/PhD/Qdev/Qcodes related/Qcodes_init_testing/",
+                    "type": "string"
+                },
+                "analysis_location": {
+                    "description": "Location of analysis plots and data",
+                    "default": "/Users/Natalie/Documents/PhD/Qdev/Qcodes related/Qcodes_init_testing/",
+                    "type": "string"
+                }
+            }
+        },
+        "gui": {
+            "type": "object",
+            "description": "controls gui of qcodes",
+            "required": [
+                "notebook",
+                "plotlib"
+            ],
+            "properties": {
+                "plotlib": {
+                    "description": "Plotting library",
+                    "type": "string",
+                    "default": "matplotlib",
+                    "enum": [
+                        "QT",
+                        "matplotlib"
+                    ]
+                },
+                "notebook": {
+                    "description": "Use notebook frontend",
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        }
+    },
+    "description": "schema for a qcodes config file"
+}
