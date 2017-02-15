@@ -11,6 +11,10 @@ EXPERIMENT_VARS = {'analysis_location_status': False,
                    'python_log_location_status': False,
                    'jupyter_log_location_status': False}
 
+# TODO: redo load to be less hacky, apparenlty counter is accessible now
+#       so data_num can be replaces
+# TODO do1d, do2d, plot wrapper
+
 
 def set_file_locations():
     """

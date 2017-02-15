@@ -5,8 +5,6 @@ from math import factorial, sqrt
 from scipy import signal
 from . import plot_cf_data, get_latest_counter
 
-# TODO: get vna_helper funtions to 'inherit' from general
-
 
 def resonator_sweep_setup(v1, power=-30, pm_range=200e6, avg=5,
                           bw=1000, npts=2001, centre=7.25e9):
