@@ -47,3 +47,5 @@ Outstanding issues
 
 - A wrapper funtion for readable metadata and a readable snapshot of the station (or specified instrumente or parameter values from it) is required. This could be used to check the status of instruments easily and repeatably or to check the settings of instruments when a particular dataset was taken. This is a precursur to a 'monitor' and links with the idea of being able to add some instrument data to the pngs that get saved on demand. 
 
+- Further outstanding issues include better data analysis package and plotting defaults and ease of use but are more at home as QCoDeS requirements rather than wrapper functions
+
