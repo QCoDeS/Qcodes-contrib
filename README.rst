@@ -3,9 +3,14 @@ HelperFunctions
 
 An experiment layer to go on top of QCoDeS for the transmon team.
 
-Needs
+Morivation
 ------
 The basic motivation is to provide the layer between QCoDeS and the experimentalist so that the UI is useable and npt getting in the way, this includes things like standardising loggind, datasaving and folder structure of an experiment and making loading in data or recognising which analysis plot came from which dataset easier. Lots of it is unpolished and unfinishes, its a hacky first round.
+
+Prerequisites
+-------------
+- a working version of QCoDeS https://github.com/QCoDeS/Qcodes
+- the config settings for data_location, analysis_location, log_location and pulse_location set in your local config (see https://github.com/QCoDeS/Qcodes/blob/master/docs/examples/Configuring_QCoDeS.ipynb)
 
 
 Modules
