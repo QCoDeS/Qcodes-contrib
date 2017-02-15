@@ -3,9 +3,9 @@ HelperFunctions
 
 An experiment layer to go on top of QCoDeS for the transmon team.
 
-Morivation
+Motivation
 ------
-The basic motivation is to provide the layer between QCoDeS and the experimentalist so that the UI is useable and npt getting in the way, this includes things like standardising loggind, datasaving and folder structure of an experiment and making loading in data or recognising which analysis plot came from which dataset easier. Lots of it is unpolished and unfinishes, its a hacky first round.
+The basic motivation is to provide the layer between QCoDeS and the experimentalist so that the UI is useable and not getting in the way, this includes things like standardising logging prcedure, datasaving procedure and the folder structure of an experiment. It also includes wrappers to make loading in data or recognising which analysis plot came from which dataset easier. Lots of it is unpolished and unfinishes, its a hacky first round.
 
 Prerequisites
 -------------
@@ -18,7 +18,7 @@ Modules
 
 general_helper_functions.py
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-This is a module containing experiment level helper functions such as setting the smaple_name and qubit_count at the start of an experiment, setting up datasaving locations and logfiles etc, load data, etc. 
+This is a module containing experiment level helper functions such as setting the sample_name and qubit_count at the start of an experiment, setting up datasaving locations and logfiles etc, load data, etc. 
 
 vna_helper_functions.py
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -52,5 +52,5 @@ Outstanding issues
 
 - A wrapper funtion for readable metadata and a readable snapshot of the station (or specified instrumente or parameter values from it) is required. This could be used to check the status of instruments easily and repeatably or to check the settings of instruments when a particular dataset was taken. This is a precursur to a 'monitor' and links with the idea of being able to add some instrument data to the pngs that get saved on demand. 
 
-- Further outstanding issues include better data analysis package and plotting defaults and ease of use but are more at home as QCoDeS requirements rather than wrapper functions
+- Further outstanding issues include better data analysis package and plotting defaults and ease of use but are more at home as QCoDeS requirements rather than wrapper functions.
 
