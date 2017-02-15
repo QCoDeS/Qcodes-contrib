@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from math import factorial, sqrt
 from scipy import signal
-from . import get_latest_counter, plot_cf_data
+from . import plot_cf_data, get_latest_counter
 
 # TODO: get vna_helper funtions to 'inherit' from general
 

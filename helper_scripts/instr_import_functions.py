@@ -5,7 +5,9 @@ import logging
 
 
 def import_decadac(port=5):
-    global qubit_count  # TODO do we need this?
+    if 'qubit_count' not in globals():
+        raise NameError('qubit_count not set, please run set_qubit_count().')
+
     slot_count = int(np.ceil(qubit_count / 4))
     dec_slots = []
     dec_chans = []

@@ -6,13 +6,10 @@ import matplotlib.pyplot as plt
 from time import localtime, strftime
 import logging
 from IPython import get_ipython
-
-sample_name = None
-data_location = None
-analysis_location = None
-jupyter_log_location = None
-python_log_location = None
-qubit_count = 0
+EXPERIMENT_VARS = {'analysis_location_status': False,
+                   'data_location_status': False,
+                   'python_log_location_status': False,
+                   'jupyter_log_location_status': False}
 
 
 def set_file_locations():
@@ -23,16 +20,6 @@ def set_file_locations():
     set_log_locations()
     set_data_location()
     set_analysis_location()
-
-
-def set_qubit_count(count):
-    """
-    Sets global qubit_count
-
-    Args: count
-    """
-    global qubit_count
-    qubit_count = count
 
 
 def in_ipynb():
@@ -50,14 +37,42 @@ def in_ipynb():
         return False
 
 
+def set_qubit_count(count):
+    """
+    Sets qubit_count in EXPERIMENT_VARS dictionary
+
+    Args: count
+    """
+    EXPERIMENT_VARS['qubit_count'] = count
+
+
+def get_qubit_count():
+    """
+    Returns: value of qubit_count in local dict
+    """
+    try:
+        return EXPERIMENT_VARS['qubit_count']
+    except KeyError:
+        raise KeyError('qubit_count not set, please call qubit_count')
+
+
 def set_sample_name(name):
     """
-    Sets global sample_name.
+    Sets sample_name in EXPERIMENT_VARS dictionary
 
     Args: sample_name
     """
-    global sample_name
-    sample_name = name
+    EXPERIMENT_VARS['sample_name'] = name
+
+
+def get_sample_name():
+    """
+    Returns: value of sample_name in local dict
+    """
+    try:
+        return EXPERIMENT_VARS['sample_name']
+    except KeyError:
+        raise KeyError('sample_name not set, please call set_sample_name')
 
 
 def set_data_location():
@@ -66,13 +81,10 @@ def set_data_location():
     the qcodes.config.user.data_location value and sets global
     variable data_location.
     """
-    global data_location
-    global sample_name  # TODO do we need this?
-    if sample_name is None:
-        raise ValueError('sample_name must be set via set_sample_name'
-                         'before set_data location can be called')
+    sample_name = get_sample_name()
+
     try:
-        data_location_format = qc.config.user.data_location % sample_name
+        data_location_format = qc.config.user.data_location.format(sample_name=sample_name)
     except KeyError:
         raise KeyError('data_location not set in config, see '
                        '"https://github.com/QCoDeS/Qcodes/blob/master'
@@ -81,9 +93,20 @@ def set_data_location():
         fmt=data_location_format)
     qc.data.data_set.DataSet.location_provider = loc_provider
     data_location = data_location_format.replace('{counter}', '')
+    EXPERIMENT_VARS['data_location_status'] = True
     logging.info('Set data location: {}'.format(data_location))
     print('Set data location: {}'.format(data_location))
     print('-------------------------')
+
+
+def get_data_location():
+    sample_name = get_sample_name()
+    if EXPERIMENT_VARS['data_location_status']:
+        data_location_format = qc.config.user.data_location.format(sample_name=sample_name)
+        data_location = data_location_format.replace('{counter}', '')
+        return data_location
+    else:
+        raise Exception('data_location not set, please call set_data_location')
 
 
 def set_analysis_location():
@@ -92,23 +115,35 @@ def set_analysis_location():
     the qcodes.config.user.analysis_location value and sets global
     variable analysis_location.
     """
-    global sample_name  # TODO do we need this?
-    global analysis_location
-    if sample_name is None:
-        raise ValueError('sample_name must be set via set_sample_name'
-                         'before set_analysis_location can be called')
+    sample_name = get_sample_name()
+
     try:
         analysis_location = qc.config.user.analysis_location.format(
-            sample_name)
+            sample_name=sample_name)
     except KeyError:
         raise KeyError('analysis_location not set in config, see '
                        '"https://github.com/QCoDeS/Qcodes/blob/master'
                        '/docs/examples/Configuring_QCoDeS.ipynb"')
     if not os.path.exists(analysis_location):
         os.makedirs(analysis_location)
+    EXPERIMENT_VARS['analysis_location_status'] = True
     logging.info('Set up analysis location: {}'.format(analysis_location))
     print('Set up analysis location: {}'.format(analysis_location))
     print('-------------------------')
+
+
+def get_analysis_location():
+    """
+    Returns: analysis_location based on config and local sample_name
+    """
+
+    sample_name = get_sample_name()
+    if EXPERIMENT_VARS['analysis_location_status']:
+        return qc.config.user.analysis_location.format(
+            sample_name=sample_name)
+    else:
+        raise Exception(
+            'analysis_location not set, please call set_analysis_location')
 
 
 def set_log_locations():
@@ -119,15 +154,10 @@ def set_log_locations():
     file, starts jupyter log. Sets global variables python_log_location,
     jupyter_log_location.
     """
-    global sample_name  # TODO do we need this?
-    global jupyter_log_location
-    global python_log_location
-    if sample_name is None:
-        raise ValueError('sample_name must be set via set_sample_name'
-                         'before set_log_location can be called')
+    sample_name = get_sample_name()
     try:
         log_location = qc.config.user.log_location.format(
-            sample_name)
+            sample_name=sample_name)
     except KeyError:
         raise KeyError('log_location not set in config, see '
                        '"https://github.com/QCoDeS/Qcodes/blob/master'
@@ -145,6 +175,7 @@ def set_log_locations():
                         level=logging.DEBUG,
                         format='%(asctime)s %(levelname)s %(message)s',
                         datefmt='%Y-%m-%d_%H-%M-%S')
+    EXPERIMENT_VARS['python_log_location_status'] = True
     print('Set up python log location: {}'.format(python_log_location))
     print('-------------------------')
 
@@ -155,11 +186,27 @@ def set_log_locations():
         jupyter_logfile_name = str(jupyter_log_location +
                                    strftime('%Y-%m-%d_%H-%M', localtime()) +
                                    '_ipythonlogfile.txt')
-        get_ipython().magic("logstart -t %s" % jupyter_logfile_name)
+        get_ipython().magic("logstart -t '%s'" % jupyter_logfile_name)
+        EXPERIMENT_VARS['jupyter_log_location_status'] = True
         print('Set up jupyter log location: {}'.format(jupyter_log_location))
         print('-------------------------')
+
+
+def get_log_locations():
+    if (EXPERIMENT_VARS['python_log_location_status'] or
+            EXPERIMENT_VARS['jupyter_log_location_status']):
+        logs = {}
+        sample_name = EXPERIMENT_VARS['sample_name']
+        log_location = qc.config.user.log_location.format(
+            sample_name=sample_name)
+        if EXPERIMENT_VARS['python_log_location_status']:
+            logs['python_log'] = log_location + 'python_logs/'
+        if EXPERIMENT_VARS['jupyter_log_location_status']:
+            logs['jupyter_log'] = log_location + 'jupyter_logs/'
+        return logs
     else:
-        jupyter_log_location = None
+        raise Exception('no logs set, please run set_log_locations to start'
+                        ' logs')
 
 
 def get_latest_counter():
@@ -272,15 +319,10 @@ def save_plot(plot_to_save, name=None):
         except AttributeError:
             raise AttributeError('No name specified and fig has no data_num'
                                  ': please specify a name for the plot')
-    elif name[-4:] is not '.png':
-        name = name + '.png'
-
-    if sample_name is not None:
-        analysis_location = qc.config.user.analysis_location.format(
-            sample_name)
     else:
-        raise Exception('no sample_name glabal variable set, please call '
-                        'set_sample_name()')
+        name = name + '_{}.png'.format(fig.data_num)
+
+    analysis_location = get_analysis_location()
     fig.savefig(analysis_location + name)
 
 
