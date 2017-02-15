@@ -30,13 +30,18 @@ Outstanding issues
 
 - Should be possible/easier to specify what you want to plot from a dataset on what axes and have this labeled etc
 
-- Folder structure is currently set as 
-root/sample_name
-		/analysis
-		/data
-		/log_files
-		/pulse_lib
-which is not possible with the https://github.com/qdev-dk/Qcodes/blob/master/qcodes/utils/wrappers.py extension but also might be too experiment specific, need a way to make something more general so that the experimentalist can choose file setup at start.
+-	Folder structure is currently set as 
+
+	- root/sample_name
+	
+			- /analysis
+	
+			- /data
+	
+			- /log_files
+	
+			- /pulse_lib
+	which is not possible with the https://github.com/qdev-dk/Qcodes/blob/master/qcodes/utils/wrappers.py extension but also might be too experiment specific, need a way to make something more general so that the experimentalist can choose file setup at start.
 
 - The way dataset identification is done is currently by the name of the folder in the specified directory which is pretty horrible. This should improve when QCoDeS has an id for a dataset but will it be readable/searchable etc? Unsolved issue of how to find a dataset and link it to an analysis plot or similar.
 
