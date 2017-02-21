@@ -1,4 +1,4 @@
-HelperFunctions
+QDev Transmon Helpers and Examples
 ===================================
 
 An experiment layer to go on top of QCoDeS for the transmon team.
