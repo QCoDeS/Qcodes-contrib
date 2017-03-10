@@ -6,6 +6,10 @@ from . import get_qubit_count
 
 alazar_acq_types = ['samp', 'rec', 'ave']
 
+# TODO: import alazar function
+# TODO: import alazar acq controller function
+# TODO: import rohde schwarz function (more?)
+# TODO: how should station be dealt with?
 
 def import_decadac(port=5):
     qubit_count = get_qubit_count()
@@ -34,12 +38,11 @@ def import_decadac(port=5):
     return dec_slots, dec_chans
 
 
-def import_vna(visa_address='TCPIP0::172.20.3.94::inst0::INSTR',
-               port_num=2):
+def import_vna(visa_address='TCPIP0::172.20.3.94::inst0::INSTR'):
     from qcodes.instrument_drivers.rohde_schwarz.ZNB20 import ZNB20
-    vna = ZNB20('vna', visa_address, port_num)
-    qc.Station.add_component(vna)
-    logging.info('imported VNA: \'vna\', {} ports'.format(port_num))
+    vna = ZNB20('vna', visa_address)
+    # qc.Station.add_component(vna)
+    logging.info('imported VNA: \'vna\'')
     print('imported VNA: \'vna\'')
     print('-------------------------')
     return vna

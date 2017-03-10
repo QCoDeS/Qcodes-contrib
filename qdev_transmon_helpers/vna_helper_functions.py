@@ -22,7 +22,7 @@ def resonator_sweep_setup(v1, power=-30, pm_range=200e6, avg=5,
         centre (float): default 7.25e9
     """
     v1.rf_on()
-    v1.spec_mode('off')
+    # v1.spec_mode('off')
     v1.bandwidth(bw)
     v1.avg(avg)
     v1.power(power)
@@ -43,7 +43,7 @@ def power_sweep_setup(v1, avg=5, bw=1000, npts=201):
         npts (int): default 201
     """
     v1.rf_on()
-    v1.spec_mode('off')
+    # v1.spec_mode('off')
     v1.bandwidth(bw)
     v1.avg(avg)
     v1.npts(npts)
@@ -105,7 +105,7 @@ def gate_sweep_setup(v1, avg=5, bw=1000, npts=201, power=-40):
         power (int): default -40
     """
     v1.rf_on()
-    v1.spec_mode('off')
+    # v1.spec_mode('off')
     v1.bandwidth(bw)
     v1.avg(avg)
     v1.npts(npts)

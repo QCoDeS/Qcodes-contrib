@@ -205,7 +205,7 @@ def set_log_locations():
         jupyter_logfile_name = str(jupyter_log_location +
                                    strftime('%Y-%m-%d_%H-%M', localtime()) +
                                    '_ipythonlogfile.txt')
-        get_ipython().magic("logstart -t '%s'" % jupyter_logfile_name)
+        get_ipython().magic("logstart -t %s" % jupyter_logfile_name)
         EXPERIMENT_VARS['jupyter_log_loc'] = True
         print('Set up jupyter log location: {}'.format(jupyter_log_location))
         print('-------------------------')
@@ -239,8 +239,11 @@ def get_latest_counter():
     Returns:
         latest counter int
     """
-    path = qc.data.data_set.DataSet.location_provider.fmt[:-9]
-    files = [re.sub("[^0-9]", "", f) for f in os.listdir(path)]
+    path = get_data_location()
+    try:
+        files = [re.sub("[^0-9]", "", f) for f in os.listdir(path)]
+    except FileNotFoundError:
+        raise FileNotFoundError('No files in ' + path)
     int_files = [int(re.findall(r'\d+', file_name)) for file_name in files]
     return max(int_files)
 
@@ -314,14 +317,14 @@ def measure(param, plot=True, plot_variable=None):
         data (qcodes DataSet)
         pl (QtPlot)
     """
+    data = qc.Measure(param).run()
     data_num = get_latest_counter()
     str_data_num = '{0:03d}'.format(data_num)
     title = get_data_file_format().format(
         sample_name=get_sample_name(),
         counter=str_data_num)
-
-    data = qc.Measure(param).run()
-    data.data_num = get_latest_counter()
+    
+    data.data_num = data_num
     if plot:
         plots = []
         # TODO does this actually check for being a setpoint?
