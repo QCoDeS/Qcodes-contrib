@@ -2,12 +2,13 @@ from qcodes.instrument_drivers.Harvard.Decadac import Decadac
 import numpy as np
 import qcodes as qc
 import logging
+from . import get_qubit_count
+
+alazar_acq_types = ['samp', 'rec', 'ave']
 
 
 def import_decadac(port=5):
-    if 'qubit_count' not in globals():
-        raise NameError('qubit_count not set, please run set_qubit_count().')
-
+    qubit_count = get_qubit_count()
     slot_count = int(np.ceil(qubit_count / 4))
     dec_slots = []
     dec_chans = []
@@ -50,3 +51,10 @@ def import_dummy_time():
     print('imported manual parameter: \'dummy_time\'')
     print('-------------------------')
     return dummy_time
+
+def import_alazar():
+    raise NotImplementedError
+
+def import_acq_controller(alazar_name, type='ave'):
+    return NotImplementedError
+

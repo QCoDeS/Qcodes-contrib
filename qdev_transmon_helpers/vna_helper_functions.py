@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from math import factorial, sqrt
 from scipy import signal
-from . import plot_cf_data, get_latest_counter
+from . import plot_cf_data, get_latest_counter, get_sample_name, get_data_file_format
 
 
 def resonator_sweep_setup(v1, power=-30, pm_range=200e6, avg=5,
@@ -68,6 +68,12 @@ def do_power_sweep(v1, centre, pm_range=10e6,
         dataset (qcodes DataSet)
         plot (QtPlot)
     """
+    data_num = get_latest_counter()
+    str_data_num = '{0:03d}'.format(data_num)
+    title = get_data_file_format().format(
+        sample_name=get_sample_name(),
+        counter=str_data_num)
+
     v1.start(centre - pm_range)
     v1.stop(centre + pm_range)
     loop = qc.Loop(v1.power.sweep(
@@ -75,9 +81,14 @@ def do_power_sweep(v1, centre, pm_range=10e6,
     dataset = loop.get_data_set()
     plot = qc.QtPlot(figsize=(700, 500))
     plot.add(dataset.VNA_magnitude)
-    _ = loop.with_bg_task(plot.update, plot.save).run()
-    dataset.data_num = get_latest_counter()
-    plot.data_num = get_latest_counter()
+    plot.subplots[0].showGrid(True, True)
+    plot.subplots[0].setTitle(title)
+    try:
+        _ = loop.with_bg_task(plot.update, plot.save).run()
+    except KeyboardInterrupt:
+        print("Measurement Interrupted")
+    dataset.data_num = data_num
+    plot.data_num = data_num
     return dataset, plot
 
 
@@ -128,21 +139,32 @@ def do_gate_sweep(v1, centre, chan, reset_after=True, pm_range=10e6,
         gate_step (float): V powe step, default 10 milivolt
 
     Returns:
-        dataset (qcodes DataSet)
+        data (qcodes DataSet)
         plot (QtPlot)
     """
+    data_num = get_latest_counter()
+    str_data_num = '{0:03d}'.format(data_num)
+    title = get_data_file_format().format(
+        sample_name=get_sample_name(),
+        counter=str_data_num)
+
     v1.start(centre - pm_range)
     v1.stop(centre + pm_range)
     loop = qc.Loop(chan.sweep(gate_start, gate_stop, gate_step)).each(v1.trace)
-    dataset = loop.get_data_set()
+    data = loop.get_data_set()
     plot = qc.QtPlot(figsize=(700, 500))
-    plot.add(dataset.VNA_magnitude)
-    _ = loop.with_bg_task(plot.update, plot.save).run()
+    plot.add(data.VNA_magnitude)
+    plot.subplots[0].showGrid(True, True)
+    plot.subplots[0].setTitle(title)
+    try:
+        _ = loop.with_bg_task(plot.update, plot.save).run()
+    except KeyboardInterrupt:
+        print("Measurement Interrupted")
     if reset_after:
         chan(gate_start)
-    dataset.data_num = get_latest_counter()
+    data.data_num = get_latest_counter()
     plot.data_num = get_latest_counter()
-    return dataset, plot
+    return data, plot
 
 
 def smooth_data_SG(y, window_size, order, deriv=0, rate=1):
