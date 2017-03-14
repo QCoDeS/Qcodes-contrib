@@ -12,9 +12,10 @@ EXPERIMENT_VARS = {'analysis_loc': False,
                    'python_log_loc': False,
                    'jupyter_log_loc': False}
 
-# TODO: redo load to be less hacky, apparenlty counter is accessible now
-#       so data_num can be replaces
-# TODO do1d, do2d, plot wrapper
+# TODO: test if plot load and measure fns
+# TODO: test in_ipynb vs qc.in_notebook (and potentially replace)
+# TODO: test data.location_provider.counter (especialyy plot_cf_fata logic)
+# TODO: create dataset function
 
 
 def set_file_locations():
@@ -55,7 +56,7 @@ def set_qubit_count(count):
 def get_qubit_count():
     """
     Returns:
-        value of qubit_count in local dict
+        value of qubit_count in EXPERIMENT_VARS dictionary
     """
     try:
         return EXPERIMENT_VARS['qubit_count']
@@ -76,7 +77,7 @@ def set_sample_name(name):
 def get_sample_name():
     """
     Returns:
-        value of sample_name in local dict
+        value of sample_name in EXPERIMENT_VARS dictionary.
     """
     try:
         return EXPERIMENT_VARS['sample_name']
@@ -86,9 +87,10 @@ def get_sample_name():
 
 def set_data_location():
     """
-    Sets location for qcodes to save data based on
-    the qcodes.config.user.data_location value and sets global
-    variable data_location.
+    Sets location for qcodes to save data based on the
+    qcodes.config.user.data_location value, the
+    qc.config.user.data_format and the sample name and sets
+    data_loc_fmt in EXPERIMENT_VARS dictionary to True.
     """
     sample_name = get_sample_name()
 
@@ -97,9 +99,11 @@ def set_data_location():
         dat_fmt = qc.config.user.data_format
         dat_loc_fmt = dat_loc + dat_fmt
     except KeyError:
-        raise KeyError('data_location ir data_format not set in config, see '
+        raise KeyError('data_location or data_format not set in config, see '
                        '"https://github.com/QCoDeS/Qcodes/blob/master'
                        '/docs/examples/Configuring_QCoDeS.ipynb"')
+    if not os.path.exists(dat_loc):
+        os.makedirs(dat_loc)
     loc_provider = qc.FormatLocation(fmt=dat_loc_fmt)
     qc.data.data_set.DataSet.location_provider = loc_provider
     EXPERIMENT_VARS['data_loc_fmt'] = True
@@ -112,6 +116,11 @@ def set_data_location():
 
 
 def get_data_location():
+    """
+    Returns:
+        location of data and pngs from qc.config.user.data_location and
+        sample_name if data_location set by calling set_data_location()
+    """
     sample_name = get_sample_name()
     if EXPERIMENT_VARS['data_loc_fmt']:
         dat_loc = qc.config.user.data_location.format(sample_name=sample_name)
@@ -121,6 +130,11 @@ def get_data_location():
 
 
 def get_data_file_format():
+    """
+    Returns
+        format of name given to data files from qc.config.user.data_format
+        if data_location set by calling set_data_location()
+    """
     if EXPERIMENT_VARS['data_loc_fmt']:
         dat_fmt = qc.config.user.data_format
         return dat_fmt
@@ -131,8 +145,8 @@ def get_data_file_format():
 def set_analysis_location():
     """
     Sets location for qcodes to save analysis data based on
-    the qcodes.config.user.analysis_location value and sets global
-    variable analysis_location.
+    the qcodes.config.user.analysis_location value and sets analysis_loc
+    in EXPERIMENT_VARS dictionary to True.
     """
     sample_name = get_sample_name()
 
@@ -153,9 +167,10 @@ def set_analysis_location():
 
 def get_analysis_location():
     """
-    Returns: analysis_location based on config and local sample_name
+    Returns:
+        analysis_location based on qc.config.user.analysis_location
+        and sample_name if data_location set by calling set_analysis_location()
     """
-
     sample_name = get_sample_name()
     if EXPERIMENT_VARS['analysis_loc']:
         return qc.config.user.analysis_location.format(
@@ -170,8 +185,8 @@ def set_log_locations():
     Sets location for qcodes to save log files based on
     the qcodes.config.user.log_location value. Within this folder
     creates python_logs file and (if in notebook) creates jupyter_logs
-    file, starts jupyter log. Sets global variables python_log_location,
-    jupyter_log_location.
+    file, starts jupyter log. Sets python_log_loc and jupyter_log_loc
+    in EXPERIMENT_VARS dictionary to True.
     """
     sample_name = get_sample_name()
     try:
@@ -212,6 +227,12 @@ def set_log_locations():
 
 
 def get_log_locations():
+    """
+    Returns:
+        dictionary of 'python_log' and 'jupyter_log' locations where set by
+        calling get_log_locations() based on qc.config.user.log_location and
+        sample_name.
+    """
     if (EXPERIMENT_VARS['python_log_loc'] or
             EXPERIMENT_VARS['jupyter_log_loc']):
         logs = {}
@@ -241,24 +262,25 @@ def get_latest_counter():
     """
     path = get_data_location()
     try:
-        files = [re.sub("[^0-9]", "", f) for f in os.listdir(path)]
+        file_names = [re.sub("[^0-9]", "", f) for f in os.listdir(path)]
     except FileNotFoundError:
         raise FileNotFoundError('No files in ' + path)
-    int_files = [int(re.findall(r'\d+', file_name)) for file_name in files]
-    return max(int_files)
+    file_ints = [int(re.findall(r'\d+', f)) for f in file_names]
+    return max(file_ints)
 
 
 def load(num, plot=True):
     """
-    Function like shownum which loads dataset and QtPlot from default location
+    Function like shownum which loads dataset and (optionally)
+    QtPlot from default location
 
     Args:
         num (int)
         plot(default=True): do you want to return plots as well as dataset?
 
     Returns:
-    dataset (qcodes DataSet)
-    plot (QtPlot)
+        dataset (qcodes DataSet)
+        plot (QtPlot)
     """
     str_num = '{0:03d}'.format(num)
 
@@ -315,15 +337,15 @@ def measure(param, plot=True, plot_variable=None):
 
     Returns:
         data (qcodes DataSet)
-        pl (QtPlot)
+        plot (QtPlot)
     """
     data = qc.Measure(param).run()
-    data_num = get_latest_counter()
+    data_num = get_latest_counter()  # TODO: or data.location_provider.counter
     str_data_num = '{0:03d}'.format(data_num)
     title = get_data_file_format().format(
         sample_name=get_sample_name(),
         counter=str_data_num)
-    
+
     data.data_num = data_num
     if plot:
         plots = []
@@ -351,14 +373,15 @@ def measure(param, plot=True, plot_variable=None):
     #     return dataset
 
 
-def save_plot(plot_to_save, name=None):
+def save_fig(plot_to_save, name='analysis'):
     """
-    Function which saves a plot in qc config analysis_location
+    Function which saves a matplot figure in analysis_location from
+    get_analysis_location()
 
     Args:
         plot_to_save (matplotlib AxesSubplot or Figure)
-        name (default None): name to save  if none tries
-                to save it using plot_to_save.data_num
+        name (default 'analysis'): plot will be saved with
+            '{data_num}_{name}.png'; so data_num and/or name must be unique
     """
 
     fig = getattr(plot_to_save, 'figure', None)
@@ -366,24 +389,23 @@ def save_plot(plot_to_save, name=None):
     if fig is None:
         fig = plot_to_save
 
-    str_data_num = '{0:03d}'.format(fig.data_num)
-
-    if name is None:
-        try:
-            name = str_data_num + '_analysis.png'
-        except AttributeError:
+    try:
+        str_data_num = '{0:03d}'.format(fig.data_num)
+    except AttributeError:
+        str_data_num = ''
+        if name is 'analysis':
             raise AttributeError('No name specified and fig has no data_num'
                                  ': please specify a name for the plot')
-    else:
-        name = str_data_num + name + '.png'.format(fig.data_num)
+
+    full_name = str_data_num + '_' + name + '.png'
 
     analysis_location = get_analysis_location()
-    fig.savefig(analysis_location + name)
+    fig.savefig(analysis_location + full_name)
 
 
 def plot_cf_data(data1, data2, data3=None, data4=None, datanum=None,
                  subplot=None, xdata=None,
-                 legend_labels=None, axes_labels=None):
+                 legend_labels=[[]] * 4, axes_labels=[[]] * 2):
     """
     Function to plot multiple arrays (of same length) on one axis
 
@@ -393,42 +415,44 @@ def plot_cf_data(data1, data2, data3=None, data4=None, datanum=None,
         data3 (array): optional
         data4 (array): optional
         datanum (int): number to ascribe to the data optional, should
-                    match the name under which the
-                    dataset to reference is saved
-        subplot (matplotlib AxesSubplot): subplot which this data should
-                    be plotted on default None will create new one
-        xdata (array): x axis data, default None results in indices
-                    of data1 being used
-        legend_labels ['d1 label', ..]: labels for data, default None
-        axes_labels ['xlabel', 'ylabel']: labels for axes
+            match the name under which the
+            dataset to reference is saved
+        subplot (matplotlib AxesSubplot): optional subplot which this data
+            should be plotted on default None will create new one
+        xdata (array): optional x axis data, default None results in indices
+            of data1 being used
+        legend_labels ['d1 label', ..]: optional labels for data
+        axes_labels ['xlabel', 'ylabel']: optional labels for axes
 
     Returns:
-        subplot (matplotlib AxesSubplot)
+        fig, sub (matplotlib.figure.Figure, matplotlib AxesSubplot) if
+            subplot kwarg not None
     """
     # set up plotting values
     if subplot is None:
-        fig = plt.figure()
-        subplot = plt.subplot(111)
+        fig, sub = plt.subplots()
     if datanum is not None:
-        subplot.figure.data_num = datanum
-    if legend_labels is None:
-        legend_labels = [None] * 4
+        sub.figure.data_num = datanum
+        sub.set_title('{}_{0:03d}'.format(get_sample_name(), datanum))
+    if len(legend_labels) < 4:
+        legend_labels.extend([[]] * (4 - len(legend_labels)))
     if xdata is None:
         xdata = np.arange(len(data1))
 
     # plot data
-    subplot.plot(xdata, data1, 'r', linewidth=1.0, label=legend_labels[0])
-    subplot.plot(xdata, data2, 'b', linewidth=1.0, label=legend_labels[1])
+    sub.plot(xdata, data1, 'r', linewidth=1.0, label=legend_labels[0])
+    sub.plot(xdata, data2, 'b', linewidth=1.0, label=legend_labels[1])
     if data3 is not None:
-        subplot.plot(xdata, data3, 'g', linewidth=1.0, label=legend_labels[2])
+        sub.plot(xdata, data3, 'g', linewidth=1.0, label=legend_labels[2])
     if data4 is not None:
-        subplot.plot(xdata, data4, 'y', linewidth=1.0, label=legend_labels[3])
+        sub.plot(xdata, data4, 'y', linewidth=1.0, label=legend_labels[3])
 
     # apply plotting values
-    if legend_labels[0] is not None:
-        subplot.legend(loc='upper right', fontsize=10)
-    if axes_labels is not None:
-        subplot.set_xlabel(axes_labels[0])
-        subplot.set_ylabel(axes_labels[1])
+    if any(legend_labels):
+        sub.legend(loc='upper right', fontsize=10)
+    if any(axes_labels):
+        sub.set_xlabel(axes_labels[0])
+        sub.set_ylabel(axes_labels[1])
 
-    return subplot
+    if subplot is None:
+        return fig, sub

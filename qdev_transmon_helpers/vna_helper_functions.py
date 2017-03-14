@@ -3,7 +3,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from math import factorial, sqrt
 from scipy import signal
-from . import plot_cf_data, get_latest_counter, get_sample_name, get_data_file_format
+from . import plot_cf_data, get_latest_counter, get_sample_name, \
+    get_data_file_format
+
+# TODO: spec mode settings
+# TODO: _ = loop
+# TODO: test data.location_provider.counter
+# TODO: save data
 
 
 def resonator_sweep_setup(v1, power=-30, pm_range=200e6, avg=5,
@@ -84,7 +90,7 @@ def do_power_sweep(v1, centre, pm_range=10e6,
     plot.subplots[0].showGrid(True, True)
     plot.subplots[0].setTitle(title)
     try:
-        _ = loop.with_bg_task(plot.update, plot.save).run()
+        _ = loop.with_bg_task(plot.update, plot.save).run()  # TODO
     except KeyboardInterrupt:
         print("Measurement Interrupted")
     dataset.data_num = data_num
@@ -157,7 +163,7 @@ def do_gate_sweep(v1, centre, chan, reset_after=True, pm_range=10e6,
     plot.subplots[0].showGrid(True, True)
     plot.subplots[0].setTitle(title)
     try:
-        _ = loop.with_bg_task(plot.update, plot.save).run()
+        _ = loop.with_bg_task(plot.update, plot.save).run()  # TODO
     except KeyboardInterrupt:
         print("Measurement Interrupted")
     if reset_after:
@@ -269,20 +275,22 @@ def find_peaks(dataset, fs, cutoff=30e9, order=5,
     # find peak indices
     peakind = signal.find_peaks_cwt(np.multiply(smoothed_data, -1), widths)
 
+    try:
+        num = dataset.data_num
+    except AttributeError:
+        raise AttributeError('dataset has no data_num')
+
     # plot: unsmoothed data, smoothed data and add peak estimate values
-    subplot = plot_cf_data(unsmoothed_data,
-                           smoothed_data,
-                           xdata=setpoints,
-                           datanum=dataset.data_num,
-                           axes_labels=['frequency(Hz)', 'S21'])
+    fig, subplot = plot_cf_data(unsmoothed_data,
+                                smoothed_data,
+                                xdata=setpoints,
+                                datanum=num,
+                                axes_labels=['frequency(Hz)', 'S21'])
     subplot.plot(setpoints[peakind], smoothed_data[peakind], 'gs')
     txt = '{} resonances found at {}'.format(len(peakind), setpoints[peakind])
 
-    fig = subplot.figure
-    try:
-        fig.suptitle('dataset {}'.format(dataset.data_num), fontsize=12)
-    except AttributeError as e:
-        print('cannot set title, dataset has no data_num: {}'.format(e))
+    fig.suptitle('{}_{}_find_peaks'.format(num, get_sample_name()),
+                 fontsize=12)
 
     # TODO save this info!!
     print(txt)
@@ -304,6 +312,7 @@ def plot_resonances(dataset, indices, subplot=None):
         fig = plt.figure()
         subplot = plt.subplot(111)
         try:
+            # TODO: replace with data.location_provider.counter?
             fig.data_num = dataset.data_num
         except AttributeError as e:
             print('dataset has no data_num set: {}'.format(e))
@@ -380,6 +389,7 @@ def get_resonator_push(dataset):
     plt.tight_layout()
 
     try:
+        # TODO: replace with data.location_provider.counter?
         fig.data_num = dataset.data_num
         fig.suptitle('dataset {}'.format(fig.data_num), fontsize=12)
         fig.text(0, 0, 'bare res: {}, pushed res: {}, push: {}'.format(
