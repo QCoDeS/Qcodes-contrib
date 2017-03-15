@@ -1,6 +1,7 @@
 import qcodes as qc
 import re
 import os
+import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 from qcodes.plots.pyqtgraph import QtPlot
@@ -11,11 +12,17 @@ EXPERIMENT_VARS = {'analysis_loc': False,
                    'data_loc_fmt': False,
                    'python_log_loc': False,
                    'jupyter_log_loc': False}
+vna_dict_keys = ['expected_qubit_positions', 'g_values',
+                 'resonances', 'resonator_pushes', 'gatability', 'gate_volts']
+alazar_dict_keys = ['current_qubit', 'int_times', 'int_delays', 'cavity_freqs',
+                    'cavity_pows', 'demod_freqs',
+                    'actual_qubit_positions']
 
 # TODO: test if plot load and measure fns
 # TODO: test in_ipynb vs qc.in_notebook (and potentially replace)
 # TODO: test data.location_provider.counter (especialyy plot_cf_fata logic)
 # TODO: create dataset function
+# TODO: analysis_values_dict name into config
 
 
 def set_file_locations():
@@ -373,15 +380,17 @@ def measure(param, plot=True, plot_variable=None):
     #     return dataset
 
 
-def save_fig(plot_to_save, name='analysis'):
+def save_fig(plot_to_save, name='analysis', data_num=None):
     """
     Function which saves a matplot figure in analysis_location from
     get_analysis_location()
 
     Args:
         plot_to_save (matplotlib AxesSubplot or Figure)
-        name (default 'analysis'): plot will be saved with
-            '{data_num}_{name}.png'; so data_num and/or name must be unique
+        name  (str): plot will be saved with '{data_num}_{name}.png'
+            so data_num and/or name must be unique, default 'analysis'
+        data_num (int): data_num for fig naming as above, if not specified
+            will try to use one from the plot.
     """
 
     fig = getattr(plot_to_save, 'figure', None)
@@ -389,18 +398,116 @@ def save_fig(plot_to_save, name='analysis'):
     if fig is None:
         fig = plot_to_save
 
-    try:
-        str_data_num = '{0:03d}'.format(fig.data_num)
-    except AttributeError:
-        str_data_num = ''
-        if name is 'analysis':
-            raise AttributeError('No name specified and fig has no data_num'
-                                 ': please specify a name for the plot')
+    if data_num is None:
+        try:
+            str_data_num = '{0:03d}'.format(fig.data_num)
+        except AttributeError:
+            str_data_num = ''
+            if name is 'analysis':
+                raise AttributeError('No name specified and fig has '
+                                     'no data_num: please specify a '
+                                     'name for the plot')
+    else:
+        str_data_num = '{0:03d}'.format(data_num)
 
     full_name = str_data_num + '_' + name + '.png'
 
     analysis_location = get_analysis_location()
     fig.savefig(analysis_location + full_name)
+
+
+def update_calibration_dict(update_dict):
+    """
+    Function which updates (or creates) a pickled python dictionary saved
+    in the same folder as from get_analysis_location() called calibration_dict.p
+
+    Args:
+        update_dict
+    """
+    path = get_analysis_location()
+    file_name = 'calibration_dict.p'
+    try:
+        dict_to_update = pickle.load(open(path + file_name, "rb"))
+    except FileNotFoundError:
+        dict_to_update = {}
+
+    dict_to_update.update(update_dict)
+    pickle.dump(dict_to_update, open(path + file_name, 'wb'))
+
+
+def get_calibration_dict():
+    """
+    Function which gets the calibration_dict.p saved in get_analysis_location()
+    Returns:
+        calibration_dict
+    """
+    path = get_analysis_location()
+    file_name = 'analysis_dict.p'
+    calibration_dict = pickle.load(open(path + file_name, "rb"))
+    return calibration_dict
+
+
+def set_current_qubit(index, vna=True, alazar=True):
+    update_calibration_dict({'current_qubit': index})
+    print('current_qubit set to {}'.format(index))
+    validate_calibration_dictionary(vna, alazar)
+
+
+def update_calibration_val(key, val, qubit_index=None):
+    c_dict = get_calibration_dict()
+    if qubit_index is None:
+        c_dict[key][c_dict['current_qubit']] = val
+    else:
+        c_dict[key][qubit_index] = val
+    update_calibration_dict(c_dict)
+
+
+def get_calibration_val(key):
+    c_dict = get_calibration_dict()
+    return c_dict[key][c_dict['current_qubit']]
+
+
+def recalculate_g(dec_chans=None):
+    c_dict = get_calibration_dict()
+    expected = c_dict['expected_qubit_positions'][c_dict['current_qubit']]
+    actual = c_dict['actual_qubit_positions'][c_dict['current_qubit']]
+    res_data = c_dict['resonator_pushes'][c_dict['current_qubit']]
+    old_g = c_dict['g_values'][c_dict['current_qubit']]
+    new_g = g_from_qubit(actual, res_data[0], res_data[2])
+    if dec_chans is not None:
+        current_voltage = dec_chans[c_dict['current_qubit']].get_latest()
+        if (c_dict['gatability'][c_dict['current_qubit']] and
+                (current_voltage != c_dict['gate_volts'][c_dict['current_qubit']])):
+            print('New g factor calculated will not be a good estimate '
+                  'as current gate value is not the same as the value when '
+                  'the push on the resonator was measured.')
+    print('expeced qubit freq: {}\n (from g of {}, push on resonator {})'
+          'actual qubit freq: {}\n (for same push gives g of {}'.format(
+            expected, old_g, res_data[2], actual, new_g))
+    return new_g
+
+
+def validate_calibration_dictionary(vna=True, alazar=True):
+    c_dict = get_calibration_dict()
+    qubit_num = get_qubit_count()
+    qubit_length_list = np.zeros(get_qubit_count())
+    missing_keys = []
+    wrong_length_keys = []
+    if vna:
+        missing_keys.extend([k for k in vna_dict_keys if k not in c_dict])
+        wrong_length_keys.extend(
+            [k for k in vna_dict_keys if len(c_dict[k]) != qubit_num])
+    if alazar:
+        missing_keys.extend([k for k in alazar_dict_keys if k not in c_dict])
+        wrong_length_keys.extend(
+            [k for k in alazar_dict_keys if len(c_dict[k]) != qubit_num])
+    for k in missing_keys:
+        c_dict[k] = qubit_length_list
+    for k in wrong_length_keys:
+        c_dict[k] = qubit_length_list
+    print('{} added to calibration_dictionary\n'
+          '{} were reset to correct length'.format(missing_keys,
+                                                   wrong_length_keys))
 
 
 def plot_cf_data(data1, data2, data3=None, data4=None, datanum=None,
