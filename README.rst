@@ -16,9 +16,22 @@ Prerequisites
 Modules
 -------
 
-general_helper_functions.py
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+file_functions.py
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 This is a module containing experiment level helper functions such as setting the sample_name and qubit_count at the start of an experiment, setting up datasaving locations and logfiles etc, load data, etc. 
+
+calib_dict_functions.py
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+This is a module containing functions for interacting with the pickled dictionary we currently use to save calibration values.
+
+sweep_functions.py
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+This is a module containing wrapper functions which perform basic do1d and do2d type loops.
+
+plotting_functions.py
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+This is a module containing functions which set up the data plotting for the qc.QtPlot and also for matplotlib which we use for analysis
+
 
 vna_helper_functions.py
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -31,7 +44,7 @@ This is a module which has wrapper functions for instrument imports. Could be ex
 
 Outstanding issues
 ------------------
-- Currently datasets, metadata and png of plots are saved under only a counter number, this will become problematic if there is more than one plot per dataset, should also at least be possible to have a more explicit name containing some information about the plot
+- Need a better way to store, access, validate calibration data
 
 - Should be possible/easier to specify what you want to plot from a dataset on what axes and have this labeled etc
 
@@ -51,6 +64,3 @@ Outstanding issues
 - The way dataset identification is done is currently by the name of the folder in the specified directory which is pretty horrible. This should improve when QCoDeS has an id for a dataset but will it be readable/searchable etc? Unsolved issue of how to find a dataset and link it to an analysis plot or similar.
 
 - A wrapper funtion for readable metadata and a readable snapshot of the station (or specified instrumente or parameter values from it) is required. This could be used to check the status of instruments easily and repeatably or to check the settings of instruments when a particular dataset was taken. This is a precursur to a 'monitor' and links with the idea of being able to add some instrument data to the pngs that get saved on demand. 
-
-- Further outstanding issues include better data analysis package and plotting defaults and ease of use but are more at home as QCoDeS requirements rather than wrapper functions.
-
