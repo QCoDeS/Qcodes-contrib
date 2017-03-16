@@ -1,15 +1,13 @@
 import qcodes as qc
 import numpy as np
 import matplotlib.pyplot as plt
-from math import factorial, sqrt
+from math import factorial
 from scipy import signal
-from . import plot_cf_data, get_latest_counter, get_sample_name, \
-    get_data_file_format
+from . import plot_cf_data, get_latest_counter, get_sample_name, get_title
 
 # TODO: spec mode settings
-# TODO: _ = loop
-# TODO: test data.location_provider.counter
-# TODO: vna naming/plotting harcoding should be removed
+# TODO: vna naming/plotting harcoding should be removed, replace with plotting_functions
+
 
 def resonator_sweep_setup(v1, power=-30, pm_range=200e6, avg=5,
                           bw=1000, npts=2001, centre=7.25e9):
@@ -73,16 +71,15 @@ def do_power_sweep(v1, centre, pm_range=10e6,
         dataset (qcodes DataSet)
         plot (QtPlot)
     """
-    data_num = get_latest_counter() + 1
-    str_data_num = '{0:03d}'.format(data_num)
-    title = get_data_file_format().format(
-        sample_name=get_sample_name(),
-        counter=str_data_num)
+    data_num = get_latest_counter() + 1  # TODO
+    title = get_title(data_num)  # TODO
     v1.start(centre - pm_range)
     v1.stop(centre + pm_range)
     loop = qc.Loop(v1.power.sweep(
         pow_start, pow_stop, pow_step)).each(v1.trace)
-    dataset = loop.get_data_set() # TOFO dataset.locationthing.counter instead of data num
+    dataset = loop.get_data_set()
+    # data_num = dataset.location_provider.counter
+    # title = get_title(data_num)
     plot = qc.QtPlot(figsize=(700, 500))
     plot.add(dataset.vna_magnitude)
     plot.subplots[0].showGrid(True, True)
@@ -147,11 +144,7 @@ def do_gate_sweep(v1, centre, chan, reset_after=True, pm_range=10e6,
         plot (QtPlot)
     """
     data_num = get_latest_counter()
-    str_data_num = '{0:03d}'.format(data_num)
-    title = get_data_file_format().format(
-        sample_name=get_sample_name(),
-        counter=str_data_num)
-
+    title = get_title(data_num)
     v1.start(centre - pm_range)
     v1.stop(centre + pm_range)
     loop = qc.Loop(chan.sweep(gate_start, gate_stop, gate_step)).each(v1.trace)
@@ -397,36 +390,3 @@ def get_resonator_push(dataset):
 
     return [low_res, high_res, dif], fig
 
-
-def qubit_from_push(g, push, bare_res):
-    """
-    Get estimated qubit location given coupling, push on resonator
-    and bare resonator position.
-
-    Args:
-        g: coupling in Hz
-        push: push in Hz
-        bare_res: resonator position in Hz
-
-    Returns:
-        estimated qubit frequency
-    """
-    delta = g**2 / push
-    return bare_res - delta
-
-
-def g_from_qubit(qubit, bare_res, push):
-    """
-    Get estimated coupling strength given qubit frequency, push
-    on resonator and bare resonator position.
-
-    Args:
-        g: coupling in Hz
-        push: push in Hz
-        bare_res: resonator position in Hz
-
-    Returns:
-        estimated qubit frequency
-    """
-    delta = bare_res - qubit
-    return sqrt(delta * push)

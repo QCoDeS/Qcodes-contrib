@@ -1,6 +1,7 @@
 import numpy as np
 import logging
-from . import get_qubit_count, config_alazar, get_alazar_seq_mode, set_alazar_seq_mode
+from . import get_qubit_count, config_alazar, get_alazar_seq_mode, \
+    set_alazar_seq_mode
 
 alazar_acq_types = ['samp', 'ave', 'rec']
 

@@ -1,12 +1,16 @@
 import qcodes as qc
-from . import get_latest_counter, get_sample_name, get_data_file_format
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
+from . import get_latest_counter, save_fig, get_title, plot_data_live, \
+    plot_data, sweep1d, exp_decay_sin, exp_decay
 
 # TODO: init decision for differentiating between vna functions and alazar
 # functions
 # TODO: exception types
-# getlatest vs counter thing
 # TWPA settings
 # rabi_setup, ssb setup duplications
+# TODO: docstrings
 
 
 def config_alazar(alazar, seq_mode=0):
@@ -68,10 +72,16 @@ def set_alazar_seq_mode(alazar, mode):
         raise ValueError('must set seq mode to 0 or 1')
 
 
-def remove_demod_freqs(acq_controller):
-    freqs = acq_controller.demod_freqs.get()
-    for freq in freqs:
-        acq_controller.remove_demodulator(freq)
+def get_demod_freq(cavity, localos, acq_ctrl):
+    lo, cav = localos.frequency(), cavity.frequency()
+    demod = lo - cav
+    acq_freqs = acq_ctrl.demod_freqs()
+    if demod not in acq_freqs:
+        raise Exception('demod freq {} (from cavity freq {} and localos '
+                        'freq {}) not in acq controller demodulation '
+                        'frequencies: {}.'.format(demod, cav, lo, acq_freqs))
+    else:
+        return demod
 
 
 def set_single_demod_freq(cavity, localos, acq_controllers, demod_freq,
@@ -86,6 +96,12 @@ def set_single_demod_freq(cavity, localos, acq_controllers, demod_freq,
         ctrl.demod_freqs.add_demodulator(demod_freq)
 
 
+def remove_demod_freqs(acq_controller):
+    freqs = acq_controller.demod_freqs.get()
+    for freq in freqs:
+        acq_controller.remove_demodulator(freq)
+
+
 def cavity_sweep_setup(cavity, localos, qubit=None, twpa=None,
                        cav_pow=-35, locos_pow=15):
     cavity.power(cav_pow)
@@ -98,25 +114,8 @@ def cavity_sweep_setup(cavity, localos, qubit=None, twpa=None,
         twpa.status('on')
 
 
-def get_demod_freq(cavity, localos, acq_ctrl):
-    lo, cav = localos.frequency(), cavity.frequency()
-    demod = lo - cav
-    acq_freqs = acq_ctrl.demod_freqs()
-    if demod not in acq_freqs:
-        raise Exception('demod freq {} (from cavity freq {} and localos '
-                        'freq {}) not in acq controller demodulation '
-                        'frequencies: {}.'.format(demod, cav, lo, acq_freqs))
-    else:
-        return demod
-
-
 def do_cavity_freq_sweep(cavity, localos, cavity_freq, acq_ctrl,
                          cavity_pm=10e6, freq_step=1e6, live_plot=True):
-    data_num = get_latest_counter() + 1  # TODO: replcae with dataset counter
-    str_data_num = '{0:03d}'.format(data_num)
-    title = get_data_file_format().format(
-        sample_name=get_sample_name(),
-        counter=str_data_num)
     demod_freq = get_demod_freq(cavity, localos, acq_ctrl)
     loop = qc.Loop(cavity.frequency.sweep(cavity_freq - cavity_pm,
                                           cavity_freq + cavity_pm,
@@ -124,97 +123,18 @@ def do_cavity_freq_sweep(cavity, localos, cavity_freq, acq_ctrl,
         qc.Task(localos.frequency.set,
                 (cavity.frequency + demod_freq)),
         acq_ctrl.acquisition)
-    dataset = loop.get_data_set()
-    dataset.data_num = data_num
     if live_plot:
-        plot = qc.QtPlot(figsize=(700, 500))
-        for i, name in enumerate(acq_ctrl.names):
-            inst_meas_name = "{}_{}".format(acq_ctrl._instrument.name, name)
-            plot.add(getattr(dataset, inst_meas_name), subplot=i + 1)
-            plot.subplots[i].showGrid(True, True)
-            if i == 0:
-                # TODO: test if you can get away with only doing this once
-                plot.subplots[0].setTitle(title)
-            else:
-                plot.subplots[i].setTitle("")
+        dataset = loop.get_data_set()
+        plot = plot_data_live(dataset, acq_ctrl)
         try:
             _ = loop.with_bg_task(plot.update, plot.save).run()  # TODO
         except KeyboardInterrupt:
             print("Measurement Interrupted")
-        plots = [plot]
-        plot.data_num = data_num
+        return dataset, plot
     else:
-        try:
-            _ = loop.run()  # TODO
-        except KeyboardInterrupt:
-            print("Measurement Interrupted")
-        plots = []
-        for i, name in enumerate(acq_ctrl.names):
-            inst_meas_name = "{}_{}".format(acq_ctrl._instrument.name, name)
-            pl = qc.QtPlot(getattr(dataset, inst_meas_name))
-            pl.subplots[0].showGrid(True, True)
-            pl.setTitle(title)
-            pl.data_num = data_num
-            plots.append(pl)
-            plot.add(getattr(dataset, inst_meas_name), subplot=i + 1)
-            plot.subplots[i].showGrid(True, True)
-        print('plots not saved, choose a plot to save and run plots[i].save()')
-    return dataset, plots
-
-
-def do_demod_freq_sweep(cavity, localos, acq_ctrl, manual_param,
-                        demod_centre=15e6, demod_pm=5e6, demod_step=1e6,
-                        live_plot=True):
-    data_num = get_latest_counter() + 1  # TODO: replcae with dataset counter
-    str_data_num = '{0:03d}'.format(data_num)
-    title = get_data_file_format().format(
-        sample_name=get_sample_name(),
-        counter=str_data_num)
-    cav_freq = cavity.frequency()
-    loop = qc.Loop(localos.frequency.sweep(cav_freq + demod_centre - demod_pm,
-                                           cav_freq + demod_centre + demod_pm,
-                                           demod_step)).each(
-        qc.Task(remove_demod_freqs, acq_ctrl),
-        qc.Task(acq_ctrl.demod_freqs.add_demodulator,
-                (localos.frequency - cav_freq)),
-        qc.Task(manual_param.set, (localos.frequency - cav_freq)),
-        acq_ctrl.acquisition)
-    dataset = loop.get_data_set()
-    dataset.data_num = data_num
-    if live_plot:
-        plot = qc.QtPlot(figsize=(700, 500))
-        for i, name in enumerate(acq_ctrl.names):
-            inst_meas_name = "{}_{}".format(acq_ctrl._instrument.name, name)
-            plot.add(getattr(dataset, inst_meas_name), subplot=i + 1)
-            plot.subplots[i].showGrid(True, True)
-            if i == 0:
-                # TODO: test if you can get away with only doing this once
-                plot.subplots[0].setTitle(title)
-            else:
-                plot.subplots[i].setTitle("")
-        try:
-            _ = loop.with_bg_task(plot.update, plot.save).run()  # TODO
-        except KeyboardInterrupt:
-            print("Measurement Interrupted")
-        plots = [plot]
-        plot.data_num = data_num
-    else:
-        try:
-            _ = loop.run()  # TODO
-        except KeyboardInterrupt:
-            print("Measurement Interrupted")
-        plots = []
-        for i, name in enumerate(acq_ctrl.names):
-            inst_meas_name = "{}_{}".format(acq_ctrl._instrument.name, name)
-            pl = qc.QtPlot(getattr(dataset, inst_meas_name))
-            pl.subplots[0].showGrid(True, True)
-            pl.setTitle(title)
-            pl.data_num = data_num
-            plots.append(pl)
-            plot.add(getattr(dataset, inst_meas_name), subplot=i + 1)
-            plot.subplots[i].showGrid(True, True)
-        print('plots not saved, choose a plot to save and run plots[i].save()')
-    return dataset, plots
+        data = loop.run()
+        plots = plot_data(data)
+        return data, plots
 
 
 def ssb_setup(qubit, cavity=None, localos=None, twpa=None, qubit_pow=-25):
@@ -228,61 +148,8 @@ def ssb_setup(qubit, cavity=None, localos=None, twpa=None, qubit_pow=-25):
         twpa.status('on')
 
 
-def do_ssb_pow_sweep(qubit, acq_ctrl, qubit_freq, qubit_pow_start=-5,
-                     qubit_pow_stop=-25, qubit_pow_step=2, live_plot=True):
-    data_num = get_latest_counter() + 1  # TODO: replcae with dataset counter
-    str_data_num = '{0:03d}'.format(data_num)
-    title = get_data_file_format().format(
-        sample_name=get_sample_name(),
-        counter=str_data_num)
-    qubit.frequency(qubit_freq + 10e6)
-    acq_ctrl.acquisition.set_base_setpoints(base_name='ssb_drive',
-                                            base_label='qubit drive freq',
-                                            base_unit='Hz',
-                                            setpoints_start=qubit_freq + 10e6,
-                                            setpoints_stop=qubit_freq - 10e6)
-    loop = qc.Loop(qubit.power.sweep(qubit_pow_start, qubit_pow_stop,
-                                     qubit_pow_step)).each(
-        acq_ctrl.acquisition)
-    dataset = loop.get_data_set()
-    dataset.data_num = data_num
-    if live_plot:
-        plot = qc.QtPlot(figsize=(700, 500))
-        for i, name in enumerate(acq_ctrl.names):
-            inst_meas_name = "{}_{}".format(acq_ctrl._instrument.name, name)
-            plot.add(getattr(dataset, inst_meas_name), subplot=i + 1)
-            plot.subplots[i].showGrid(True, True)
-            if i == 0:
-                # TODO: test if you can get away with only doing this once
-                plot.subplots[0].setTitle(title)
-            else:
-                plot.subplots[i].setTitle("")
-        try:
-            _ = loop.with_bg_task(plot.update, plot.save).run()  # TODO
-        except KeyboardInterrupt:
-            print("Measurement Interrupted")
-        plots = [plot]
-        plot.data_num = data_num
-    else:
-        try:
-            _ = loop.run()  # TODO
-        except KeyboardInterrupt:
-            print("Measurement Interrupted")
-        plots = []
-        for i, name in enumerate(acq_ctrl.names):
-            inst_meas_name = "{}_{}".format(acq_ctrl._instrument.name, name)
-            pl = qc.QtPlot(getattr(dataset, inst_meas_name))
-            pl.subplots[0].showGrid(True, True)
-            pl.setTitle(title)
-            pl.data_num = data_num
-            plots.append(pl)
-            plot.add(getattr(dataset, inst_meas_name), subplot=i + 1)
-            plot.subplots[i].showGrid(True, True)
-        print('plots not saved, choose a plot to save and run plots[i].save()')
-    return dataset, plots
-
-
-def rabi_setup(qubit, cavity=None, localos=None, twpa=None, qubit_pow=-5):
+def rabi_setup(qubit, cavity=None, localos=None, twpa=None,
+               qubit_pow=-5, qubit_freq=None):
     qubit.power(qubit_pow)
     qubit.status('on')
     if cavity is not None:
@@ -291,4 +158,161 @@ def rabi_setup(qubit, cavity=None, localos=None, twpa=None, qubit_pow=-5):
         localos.status('on')
     if twpa is not None:
         twpa.status('on')
+    if qubit_freq is not None:
+        qubit.frequency(qubit_freq)
 
+
+def do_demod_freq_sweep(cavity, localos, acq_ctrl, manual_param,
+                        demod_centre=15e6, demod_pm=5e6, demod_step=1e6,
+                        live_plot=True):
+    cav_freq = cavity.frequency()
+    loop = qc.Loop(localos.frequency.sweep(cav_freq + demod_centre - demod_pm,
+                                           cav_freq + demod_centre + demod_pm,
+                                           demod_step)).each(
+        qc.Task(remove_demod_freqs, acq_ctrl),
+        qc.Task(acq_ctrl.demod_freqs.add_demodulator,
+                (localos.frequency - cav_freq)),
+        qc.Task(manual_param.set, (localos.frequency - cav_freq)),
+        acq_ctrl.acquisition)
+    if live_plot:
+        dataset = loop.get_data_set()
+        plot = plot_data_live(dataset, acq_ctrl)
+        try:
+            _ = loop.with_bg_task(plot.update, plot.save).run()  # TODO
+        except KeyboardInterrupt:
+            print("Measurement Interrupted")
+        return dataset, plot
+    else:
+        data = loop.run()
+        plots = plot_data(data)
+        return data, plots
+
+
+def do_ssb_pow_sweep(qubit, acq_ctrl, qubit_freq, qubit_pow_start=-5,
+                     qubit_pow_stop=-25, qubit_pow_step=2, live_plot=True):
+    qubit.frequency(qubit_freq + 10e6)
+    acq_ctrl.acquisition.set_base_setpoints(base_name='ssb_drive',
+                                            base_label='qubit drive freq',
+                                            base_unit='Hz',
+                                            setpoints_start=qubit_freq + 10e6,
+                                            setpoints_stop=qubit_freq - 10e6)
+    return sweep1d(acq_ctrl.acquisition, qubit.power, qubit_pow_start,
+                   qubit_pow_stop, qubit_pow_step, live_plot=live_plot)
+
+
+def do_rabi_freq_sweep(qubit, acq_ctrl, qubit_freq, qubit_freq_pm=4e6,
+                       qubit_freq_step=0.5e6, live_plot=True):
+    qubit_freq_start = qubit_freq - qubit_freq_pm
+    qubit_freq_stop = qubit_freq + qubit_freq_pm
+    return sweep1d(acq_ctrl.acquisition, qubit.frequency, qubit_freq_start,
+                   qubit_freq_stop, qubit_freq_step, live_plot=live_plot)
+
+
+def do_rabi_pow_sweep(qubit, acq_ctrl, qubit_pow_start=-3,
+                      qubit_pow_stop=-10, qubit_pow_step=1, live_plot=True):
+    return sweep1d(acq_ctrl.acquisition, qubit.power, qubit_pow_start,
+                   qubit_pow_stop, qubit_pow_step, live_plot=live_plot)
+
+
+def do_ramsey_freq_sweep(qubit, acq_ctrl, qubit_freq, qubit_freq_pm=4e6,
+                         qubit_freq_step=0.5e6, live_plot=True):
+    qubit_freq_start = qubit_freq - qubit_freq_pm
+    qubit_freq_stop = qubit_freq + qubit_freq_pm
+    return sweep1d(acq_ctrl.acquisition, qubit.frequency, qubit_freq_start,
+                   qubit_freq_stop, qubit_freq_step, live_plot=live_plot)
+
+
+def get_t1(data, x_name='delay', y_name='magnitude',
+           data_num=None, plot=True, subplot=None):
+    xdata = getattr(data, x_name)
+    ydata = getattr(data, y_name)
+    popt, pcov = curve_fit(exp_decay, xdata, ydata)
+    errors = np.sqrt(np.diag(pcov))
+    print('fit to equation of form y = a * exp(-x / b) + c gives:\n'
+          'a {}, b {}, c {}\n'
+          'with one standard deviation errors:\n'
+          'a {}, b {}, c {}'.format(popt[0], popt[1], popt[2],
+                                    errors[0], errors[1], errors[2]))
+    if plot:
+        if subplot is None:
+            fig, ax = plt.subplots()
+        else:
+            ax = subplot
+            fig = ax.figure
+        try:
+            x_units = xdata.units
+            y_units = ydata.units
+        except AttributeError:
+            x_units = None
+            y_units = None
+        if data_num is None:
+            try:
+                data_num = data.data_num
+                title = get_title(data_num) + '_T1'
+                if not hasattr(fig, 'data_num'):
+                    fig.data_num = data_num
+            except AttributeError:
+                title = 'T1'
+        else:
+            title = get_title(data_num) + '_T1'
+        fig.data_num = data_num
+        ax.plot(exp_decay(xdata, *popt), label='fit: T1 {}{}'.format(popt[1],
+                                                                     x_units))
+        ax.plot(ydata, label='data')
+        ax.set_xlabel('{} ({})'.format(x_name, x_units))
+        ax.set_ylabel('{} ({})'.format(y_name, y_units))
+        ax.set_title(title)
+        ax.legend(loc='upper right', fontsize=10)
+        save_fig(ax, name='t1_fit')
+        return ax, popt, errors
+    else:
+        return popt, errors
+
+
+def get_t2(data, x_name='delay', y_name='magnitude',
+           data_num=None, plot=True, subplot=None):
+    xdata = getattr(data, x_name)
+    ydata = getattr(data, y_name)
+    popt, pcov = curve_fit(exp_decay_sin, xdata, ydata)
+    errors = np.sqrt(np.diag(pcov))
+    print('fit to equation of form y = a * exp(-x / b) * sin(c * x + d) + e'
+          'gives:\na {}, b {}, c {}, d {}, e{}\n'
+          'with one standard deviation errors:\n'
+          'a {}, b {}, c {}, d {}, e{}'.format(popt[0], popt[1], popt[2],
+                                               popt[4], popt[5], errors[0],
+                                               errors[1], errors[2],
+                                               errors[4], errors[4]))
+    if plot:
+        if subplot is None:
+            fig, ax = plt.subplots()
+        else:
+            ax = subplot
+            fig = ax.figure
+        try:
+            x_units = xdata.units
+            y_units = ydata.units
+        except AttributeError:
+            x_units = None
+            y_units = None
+        if data_num is None:
+            try:
+                data_num = data.data_num
+                title = get_title(data_num) + '_T1'
+                if not hasattr(fig, 'data_num'):
+                    fig.data_num = data_num
+            except AttributeError:
+                title = 'T2*'
+        else:
+            title = get_title(data_num) + '_T2*'
+        fig.data_num = data_num
+        ax.plot(exp_decay(xdata, *popt), label='fit: T1 {}{}'.format(popt[1],
+                                                                     x_units))
+        ax.plot(ydata, label='data')
+        ax.set_xlabel('{} ({})'.format(x_name, x_units))
+        ax.set_ylabel('{} ({})'.format(y_name, y_units))
+        ax.set_title(title)
+        ax.legend(loc='upper right', fontsize=10)
+        save_fig(ax, name='t2_fit')
+        return ax, popt, errors
+    else:
+        return popt, errors
