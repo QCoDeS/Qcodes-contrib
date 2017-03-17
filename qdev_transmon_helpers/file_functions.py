@@ -278,8 +278,10 @@ def get_latest_counter():
     try:
         file_names = [re.sub("[^0-9]", "", f) for f in os.listdir(path)]
     except FileNotFoundError:
-        raise FileNotFoundError('No files in ' + path)
-    file_ints = [int(re.findall(r'\d+', f)) for f in file_names]
+        raise FileNotFoundError('No numbered files in ' + path)
+    file_ints = [int(f) for f in file_names if f]
+    if not file_ints:
+        raise FileNotFoundError('No numbered files in ' + path)
     return max(file_ints)
 
 
@@ -303,9 +305,6 @@ def load(num, plot=True):
         qc.DataSet.location_provider.fmt.format(sample_name=get_sample_name(),
                                                 counter=str_num))
 
-    # set num to be the same as that in the folder
-    data.data_num = num
-
     plots = []
     if plot:
         for value in data.arrays.keys():
@@ -316,7 +315,7 @@ def load(num, plot=True):
                     counter=str_num)
                 pl.subplots[0].setTitle(title)
                 pl.subplots[0].showGrid(True, True)
-                pl.data_num = num
+                pl.counter = num
                 plots.append(pl)
         return data, plots
     else:
@@ -348,7 +347,7 @@ def load(num, plot=True):
     #     return dataset
 
 
-def save_fig(plot_to_save, name='analysis', data_num=None):
+def save_fig(plot_to_save, name='analysis', counter=None):
     """
     Function which saves a matplot figure in analysis_location from
     get_analysis_location()
@@ -366,19 +365,19 @@ def save_fig(plot_to_save, name='analysis', data_num=None):
     if fig is None:
         fig = plot_to_save
 
-    if data_num is None:
+    if counter is None:
         try:
-            str_data_num = '{0:03d}'.format(fig.data_num)
+            str_counter = '{0:03d}'.format(fig.counter)
         except AttributeError:
-            str_data_num = ''
+            str_counter = ''
             if name is 'analysis':
                 raise AttributeError('No name specified and fig has '
-                                     'no data_num: please specify a '
+                                     'no counter: please specify a '
                                      'name for the plot')
     else:
-        str_data_num = '{0:03d}'.format(data_num)
+        str_counter = '{0:03d}'.format(counter)
 
-    full_name = str_data_num + '_' + name + '.png'
+    full_name = str_counter + '_' + name + '.png'
 
     analysis_location = get_analysis_location()
     fig.savefig(analysis_location + full_name)

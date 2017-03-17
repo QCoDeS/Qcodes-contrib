@@ -1,73 +1,64 @@
 {
-    "type": "object",
-    "$schema": "http://json-schema.org/draft-04/schema#",
-    "description": "schema for a qcodes config file",
     "properties": {
-        "gui": {
-            "type": "object",
+        "user": {
             "properties": {
-                "plotlib": {
+                "data_location": {
+                    "default": "A:/TransmonExperiments/GoogleDrive/T2acquisition/Data/",
                     "type": "string",
+                    "description": "Location of dat"
+                },
+                "analysis_location": {
+                    "default": "A:/TransmonExperiments/GoogleDrive/T2acquisition/Data/",
+                    "type": "string",
+                    "description": "Location of analysis plots and data"
+                },
+                "data_format": {
+                    "default": "{counter}",
+                    "type": "string",
+                    "description": "Format of data file names"
+                },
+                "pulse_location": {
+                    "default": "A:/TransmonExperiments/GoogleDrive/T2acquisition/Data/",
+                    "type": "string",
+                    "description": "Location of AWG files"
+                },
+                "log_location": {
+                    "default": "A:/TransmonExperiments/GoogleDrive/T2acquisition/Data/",
+                    "type": "string",
+                    "description": "Location of log files"
+                }
+            },
+            "type": "object",
+            "description": "controls user settings of qcodes"
+        },
+        "gui": {
+            "properties": {
+                "notebook": {
+                    "default": true,
+                    "type": "boolean",
+                    "description": "Use notebook frontend"
+                },
+                "plotlib": {
+                    "default": "matplotlib",
                     "enum": [
                         "QT",
                         "matplotlib"
                     ],
-                    "default": "matplotlib",
+                    "type": "string",
                     "description": "Plotting library"
-                },
-                "notebook": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Use notebook frontend"
                 }
             },
-            "description": "controls gui of qcodes",
             "required": [
                 "notebook",
                 "plotlib"
-            ]
-        },
-        "user": {
+            ],
             "type": "object",
-            "properties": {
-                "data_location": {
-                    "type": "string",
-                    "default": "A:/TransmonExperiments/GoogleDrive/T2acquisition/Data/",
-                    "description": "Location of dat"
-                },
-                "analysis_location": {
-                    "type": "string",
-                    "default": "A:/TransmonExperiments/GoogleDrive/T2acquisition/Data/",
-                    "description": "Location of analysis plots and data"
-                },
-                "pulse_location": {
-                    "type": "string",
-                    "default": "A:/TransmonExperiments/GoogleDrive/T2acquisition/Data/",
-                    "description": "Location of AWG files"
-                },
-                "log_location": {
-                    "type": "string",
-                    "default": "A:/TransmonExperiments/GoogleDrive/T2acquisition/Data/",
-                    "description": "Location of log files"
-                },
-                "data_format": {
-                    "type": "string",
-                    "default": "{counter}",
-                    "description": "Format of data file names"
-                }
-            },
-            "description": "controls user settings of qcodes"
+            "description": "controls gui of qcodes"
         },
         "core": {
-            "type": "object",
             "properties": {
-                "default_fmt": {
-                    "type": "string",
-                    "default": "data/{date}/#{counter}_{name}_{time}",
-                    "description": "default location formatter"
-                },
                 "loglevel": {
-                    "type": "string",
+                    "default": "DEBUG",
                     "enum": [
                         "CRITICAL",
                         "ERROR",
@@ -75,25 +66,34 @@
                         "INFO",
                         "DEBUG"
                     ],
-                    "default": "DEBUG",
+                    "type": "string",
                     "description": "control logging  level"
                 },
+                "default_fmt": {
+                    "default": "data/{date}/#{counter}_{name}_{time}",
+                    "type": "string",
+                    "description": "default location formatter"
+                },
                 "legacy_mp": {
-                    "type": "boolean",
                     "default": false,
+                    "type": "boolean",
                     "description": "control legacy buggy multiprocess"
                 }
             },
-            "description": "controls core settings of qcodes",
             "required": [
                 "legacy_mp",
                 "loglevel"
-            ]
+            ],
+            "type": "object",
+            "description": "controls core settings of qcodes"
         }
     },
     "required": [
         "gui",
         "core",
         "user"
-    ]
+    ],
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "type": "object",
+    "description": "schema for a qcodes config file"
 }

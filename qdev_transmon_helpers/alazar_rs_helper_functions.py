@@ -2,7 +2,7 @@ import qcodes as qc
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
-from . import get_latest_counter, save_fig, get_title, plot_data_live, \
+from . import save_fig, get_title, plot_data_live, \
     plot_data, sweep1d, exp_decay_sin, exp_decay
 
 # TODO: init decision for differentiating between vna functions and alazar
@@ -223,7 +223,7 @@ def do_ramsey_freq_sweep(qubit, acq_ctrl, qubit_freq, qubit_freq_pm=4e6,
 
 
 def get_t1(data, x_name='delay', y_name='magnitude',
-           data_num=None, plot=True, subplot=None):
+           counter=None, plot=True, subplot=None):
     xdata = getattr(data, x_name)
     ydata = getattr(data, y_name)
     popt, pcov = curve_fit(exp_decay, xdata, ydata)
@@ -245,17 +245,17 @@ def get_t1(data, x_name='delay', y_name='magnitude',
         except AttributeError:
             x_units = None
             y_units = None
-        if data_num is None:
+        if counter is None:
             try:
-                data_num = data.data_num
-                title = get_title(data_num) + '_T1'
-                if not hasattr(fig, 'data_num'):
-                    fig.data_num = data_num
+                counter = data.location_provider.counter
+                title = get_title(counter) + '_T1'
+                if not hasattr(fig, 'counter'):
+                    fig.counter = counter
             except AttributeError:
                 title = 'T1'
         else:
-            title = get_title(data_num) + '_T1'
-        fig.data_num = data_num
+            title = get_title(counter) + '_T1'
+        fig.counter = counter
         ax.plot(exp_decay(xdata, *popt), label='fit: T1 {}{}'.format(popt[1],
                                                                      x_units))
         ax.plot(ydata, label='data')
@@ -270,7 +270,7 @@ def get_t1(data, x_name='delay', y_name='magnitude',
 
 
 def get_t2(data, x_name='delay', y_name='magnitude',
-           data_num=None, plot=True, subplot=None):
+           counter=None, plot=True, subplot=None):
     xdata = getattr(data, x_name)
     ydata = getattr(data, y_name)
     popt, pcov = curve_fit(exp_decay_sin, xdata, ydata)
@@ -294,17 +294,17 @@ def get_t2(data, x_name='delay', y_name='magnitude',
         except AttributeError:
             x_units = None
             y_units = None
-        if data_num is None:
+        if counter is None:
             try:
-                data_num = data.data_num
-                title = get_title(data_num) + '_T1'
-                if not hasattr(fig, 'data_num'):
-                    fig.data_num = data_num
+                counter = data.location_provider.counter
+                title = get_title(counter) + '_T1'
+                if not hasattr(fig, 'counter'):
+                    fig.counter = counter
             except AttributeError:
                 title = 'T2*'
         else:
-            title = get_title(data_num) + '_T2*'
-        fig.data_num = data_num
+            title = get_title(counter) + '_T2*'
+        fig.counter = counter
         ax.plot(exp_decay(xdata, *popt), label='fit: T1 {}{}'.format(popt[1],
                                                                      x_units))
         ax.plot(ydata, label='data')
