@@ -33,6 +33,7 @@ def get_title(counter, single_qubit=True):
 
 
 def plot_data(data, with_title=True):
+    # CURRENTELY BROKEN
     counter = data.location_provider.counter
     if with_title is True:
         title = get_title(counter)

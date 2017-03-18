@@ -19,12 +19,13 @@ def sweep2d(meas_param, sweep_param1, start1, stop1, step1,
         except KeyboardInterrupt:
             print("Measurement Interrupted")
         return dataset, plot
-    else:
-        data = loop.run()
-        plots = plot_data(data)
-        print('warning: plots not saved, choose a plot to save '
-              'and run plots[i].save()')
-        return data, plots
+    else: # TODO: switch this back when plot_data fixed
+        # data = loop.run()
+        # plots = plot_data(data)
+        # print('warning: plots not saved, choose a plot to save '
+        #       'and run plots[i].save()')
+        # return data, plots
+        return data
 
 
 def sweep1d(meas_param, sweep_param, start, stop, step,
@@ -39,17 +40,21 @@ def sweep1d(meas_param, sweep_param, start, stop, step,
         except KeyboardInterrupt:
             print("Measurement Interrupted")
         return dataset, plot
-    else:
-        data = loop.run()
-        plots = plot_data(data)
+    else: # TODO: switch this back when plot_data fixed
+        # data = loop.run()
+        # plots = plot_data(data)
+        # print('warning: plots not saved, choose a plot to save '
+        #       'and run plots[i].save()')
+        # return data, plots
+        return data
+
+
+def measure(meas_param, plot=True):
+    data = qc.Measure(meas_param).run()
+    if plot:
+        plots = plot_data_live(data, meas_param) # TODO: switch this back when plot_data fixed
         print('warning: plots not saved, choose a plot to save '
               'and run plots[i].save()')
         return data, plots
-
-
-def measure(meas_param):
-    data = qc.Measure(meas_param).run()
-    plots = plot_data(data)
-    print('warning: plots not saved, choose a plot to save '
-          'and run plots[i].save()')
-    return data, plots
+    else:
+        return data

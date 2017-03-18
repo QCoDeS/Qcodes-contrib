@@ -1,18 +1,18 @@
 {
-    "user": {
-        "data_location": "A:/TransmonExperiments/GoogleDrive/T2acquisition/Data/{sample_name}/data/",
-        "analysis_location": "A:/TransmonExperiments/GoogleDrive/T2acquisition/Data/{sample_name}/analysis/",
-        "data_format": "{counter}",
-        "pulse_location": "A:/TransmonExperiments/GoogleDrive/T2acquisition/Data/{sample_name}/pulse_lib/",
-        "log_location": "A:/TransmonExperiments/GoogleDrive/T2acquisition/Data/{sample_name}/log_files/"
-    },
     "gui": {
-        "notebook": true,
-        "plotlib": "matplotlib"
+        "plotlib": "matplotlib",
+        "notebook": true
+    },
+    "user": {
+        "data_format": "{counter}",
+        "analysis_location": "C:/Users/qcodes-natalie/Qcodes-contrib/qdev_transmon_examples/{sample_name}/analysis/",
+        "pulse_location": "C:/Users/qcodes-natalie/Qcodes-contrib/qdev_transmon_examples/{sample_name}/pulse_lib/",
+        "data_location": "C:/Users/qcodes-natalie/Qcodes-contrib/qdev_transmon_examples/{sample_name}/data/",
+        "log_location": "C:/Users/qcodes-natalie/Qcodes-contrib/qdev_transmon_examples/{sample_name}/log_files/"
     },
     "core": {
-        "loglevel": "DEBUG",
+        "legacy_mp": false,
         "default_fmt": "data/{date}/#{counter}_{name}_{time}",
-        "legacy_mp": false
+        "loglevel": "DEBUG"
     }
 }

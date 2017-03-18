@@ -13,7 +13,7 @@ from . import save_fig, get_title, plot_data_live, \
 # TODO: docstrings
 
 
-def config_alazar(alazar, seq_mode=0):
+def config_alazar(alazar, seq_mode=0, clock_source='EXTERNAL_CLOCK_10MHz_REF'):
     if seq_mode not in [0, 1]:
         raise ValueError('must set seq mode to 0 or 1')
     if seq_mode:
@@ -22,7 +22,7 @@ def config_alazar(alazar, seq_mode=0):
     else:
         io_mode = 'AUX_IN_AUXILIARY'
         io_param = 'NONE'
-    alazar.config(clock_source='EXTERNAL_CLOCK_10MHz_REF',
+    alazar.config(clock_source=clock_source,
                   sample_rate=500000000,
                   clock_edge='CLOCK_EDGE_RISING',
                   decimation=1,
@@ -63,10 +63,16 @@ def get_alazar_seq_mode(alazar):
 
 def set_alazar_seq_mode(alazar, mode):
     if mode == 1:
-        alazar.config(aux_io_mode='AUX_IN_TRIGGER_ENABLE',
+        alazar.config(sample_rate = alazar.sample_rate(),
+                      clock_edge=alazar.clock_edge(),
+                      clock_source=alazar.clock_source(),
+                      aux_io_mode='AUX_IN_TRIGGER_ENABLE',
                       aux_io_param='TRIG_SLOPE_POSITIVE')
     elif mode == 0:
-        alazar.config(aux_io_mode='AUX_IN_AUXILIARY',
+        alazar.config(sample_rate = alazar.sample_rate(),
+                      clock_edge=alazar.clock_edge(),
+                      clock_source=alazar.clock_source(),
+                      aux_io_mode='AUX_IN_AUXILIARY',
                       aux_io_param='NONE')
     else:
         raise ValueError('must set seq mode to 0 or 1')
@@ -99,7 +105,7 @@ def set_single_demod_freq(cavity, localos, acq_controllers, demod_freq,
 def remove_demod_freqs(acq_controller):
     freqs = acq_controller.demod_freqs.get()
     for freq in freqs:
-        acq_controller.remove_demodulator(freq)
+        acq_controller.demod_freqs.remove_demodulator(freq)
 
 
 def cavity_sweep_setup(cavity, localos, qubit=None, twpa=None,

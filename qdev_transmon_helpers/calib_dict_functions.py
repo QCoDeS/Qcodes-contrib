@@ -16,7 +16,7 @@ def get_calibration_dict():
         calibration_dict
     """
     path = get_analysis_location()
-    file_name = 'analysis_dict.p'
+    file_name = 'calibration_dict.p'
     calibration_dict = pickle.load(open(path + file_name, "rb"))
     return calibration_dict
 
@@ -42,9 +42,9 @@ def update_calibration_dict(update_dict):
 
 
 def set_current_qubit(index, vna=True, alazar=True):
+    validate_calibration_dictionary(vna, alazar)
     update_calibration_dict({'current_qubit': index})
     print('current_qubit set to {}'.format(index))
-    validate_calibration_dictionary(vna, alazar)
 
 
 def update_calibration_val(key, val, qubit_index=None):
@@ -88,18 +88,18 @@ def validate_calibration_dictionary(vna=True, alazar=True):
     qubit_length_list = np.zeros(get_qubit_count())
     missing_keys = []
     wrong_length_keys = []
-    if vna:
-        missing_keys.extend([k for k in vna_dict_keys if k not in c_dict])
-        wrong_length_keys.extend(
-            [k for k in vna_dict_keys if len(c_dict[k]) != qubit_num])
-    if alazar:
-        missing_keys.extend([k for k in alazar_dict_keys if k not in c_dict])
-        wrong_length_keys.extend(
-            [k for k in alazar_dict_keys if len(c_dict[k]) != qubit_num])
+    required_keys = alazar_dict_keys * alazar + vna_dict_keys * vna
+    for k in required_keys:
+        if k not in c_dict:
+            missing_keys.append(k)
+        elif not (k is 'current_qubit' or len(c_dict[k]) == qubit_num):
+            wrong_length_keys.append(k)
     for k in missing_keys:
         c_dict[k] = qubit_length_list
     for k in wrong_length_keys:
         c_dict[k] = qubit_length_list
-    print('{} added to calibration_dictionary\n'
-          '{} were reset to correct length'.format(missing_keys,
-                                                   wrong_length_keys))
+    update_calibration_dict(c_dict)
+    if missing_keys:
+        print('{} added to calibration_dictionary'.format(missing_keys))
+    if wrong_length_keys:
+        print('{} were reset to correct length'.format(wrong_length_keys))

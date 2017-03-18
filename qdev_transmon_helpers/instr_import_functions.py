@@ -1,4 +1,5 @@
 import numpy as np
+from functools import partial
 import logging
 from . import get_qubit_count, config_alazar, get_alazar_seq_mode, \
     set_alazar_seq_mode
@@ -61,13 +62,13 @@ def import_manual_param(name='dummy_time', station=None):
     return dummy_time
 
 
-def import_alazar(name='alazar', station=None):
+def import_alazar(name='alazar', station=None, clock_source='EXTERNAL_CLOCK_10MHz_REF'):
     from qcodes.instrument_drivers.AlazarTech.ATS9360 import AlazarTech_ATS9360
     alazar = AlazarTech_ATS9360(name=name)
-    config_alazar(seq_mode=False)
+    config_alazar(alazar, seq_mode=False, clock_source=clock_source)
     alazar.add_parameter(name='seq_mode',
-                         get_cmd=get_alazar_seq_mode,
-                         set_cmd=set_alazar_seq_mode)
+                         get_cmd=partial(get_alazar_seq_mode, alazar),
+                         set_cmd=partial(set_alazar_seq_mode, alazar))
     if station is not None:
         station.add_component(alazar)
     logging.info('imported Alazar ATS9360: \'{}\''.format(name))
@@ -78,19 +79,19 @@ def import_alazar(name='alazar', station=None):
 
 def import_acq_controller(alazar, name=None, ctrl_type='ave', station=None):
     from qcodes.instrument_drivers.AlazarTech.acq_controllers import ATS9360Controller
-    ctrl_name = name or (ctrl_type + 'ctrl')
+    ctrl_name = name or (ctrl_type + '_ctrl')
     if ctrl_type is alazar_acq_types[0]:
         ctrl = ATS9360Controller(name=ctrl_name, alazar_name=alazar.name,
                                  integrate_samples=False, average_records=True)
-    if ctrl_type is alazar_acq_types[1]:
+    elif ctrl_type is alazar_acq_types[1]:
         ctrl = ATS9360Controller(name=ctrl_name, alazar_name=alazar.name,
                                  integrate_samples=True, average_records=True)
-    if ctrl_type is alazar_acq_types[2]:
+    elif ctrl_type is alazar_acq_types[2]:
         ctrl = ATS9360Controller(name=ctrl_name, alazar_name=alazar.name,
                                  integrate_samples=True, average_records=False)
     else:
-        raise Exception('acquisition controller type must be in '
-                        '{}'.format(alazar_acq_types[0:2]))
+        raise Exception('acquisition controller type must be in {}, received: '
+            '{}'.format(alazar_acq_types, ctrl_type))
     if station is not None:
         station.add_component(ctrl)
     logging.info('imported acquisition controller: \'{}\''.format(ctrl_name))
@@ -112,8 +113,7 @@ def import_rs(visa_address, name='rs_source', station=None):
 
 def import_awg(visa_address, name='awg', timeout=40, station=None):
     from qcodes.instrument_drivers.tektronix.AWG5014 import Tektronix_AWG5014
-    awg = Tektronix_AWG5014(
-        'awg1', 'TCPIP0::192.168.137.72::inst0::INSTR', timeout=timeout)
+    awg = Tektronix_AWG5014(name, visa_address, timeout=timeout)
     # TODO
     if station is not None:
         station.add_component(awg)
