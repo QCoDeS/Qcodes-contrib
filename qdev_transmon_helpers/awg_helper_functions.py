@@ -31,7 +31,12 @@ def validate_pulse_dictionary():
 def get_pulse_dict():
     path = get_pulse_location()
     file_name = 'pulse_dict.p'
-    pulse_dict = pickle.load(open(path + file_name, "rb"))
+    try:
+        pulse_dict = pickle.load(open(path + file_name, "rb"))
+    except FileNotFoundError:
+        print('pulse_dict not found, making one')
+        pickle.dump({}, open(path + file_name, 'wb'))
+        pulse_dict = {}
     return pulse_dict
 
 
@@ -64,7 +69,7 @@ def make_readout_seq(channels=[4]):
     p_dict = get_pulse_dict()
     resolution = 1 / p_dict['sampling_rate']
     readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
-    readout_marker_start = p_dict['readout_start'] - p_dict['marker_readout_delay']
+    readout_marker_start = readout_start - p_dict['marker_readout_delay']
     readout_start_points = round(readout_start / resolution)
     readout_points = round(p_dict['readout_time'] / resolution)
     marker_points = round(p_dict['marker_time'] / resolution)
@@ -100,7 +105,7 @@ def make_ssb_qubit_seq(start=0, stop=200e6, step=1e6, channels=[1, 2, 4]):
     p_dict = get_pulse_dict()
     resolution = 1 / p_dict['sampling_rate']
     readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
-    readout_marker_start = p_dict['readout_start'] - p_dict['marker_readout_delay']
+    readout_marker_start = readout_start - p_dict['marker_readout_delay']
     readout_start_points = round(readout_start / resolution)
     readout_points = round(p_dict['readout_time'] / resolution)
     pulse_end_points = round(p_dict['pulse_end'] / p_dict['resolution'])
@@ -156,7 +161,7 @@ def make_t1_seq(pi_duration, pi_amp, start=0, stop=5e-6, step=50e-9, channels=[1
     p_dict = get_pulse_dict()
     resolution = 1 / p_dict['sampling_rate']
     readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
-    readout_marker_start = p_dict['readout_start'] - p_dict['marker_readout_delay']
+    readout_marker_start = readout_start - p_dict['marker_readout_delay']
     readout_start_points = round(readout_start / resolution)
     readout_points = round(p_dict['readout_time'] / resolution)
     pulse_end_points = round(p_dict['pulse_end'] / p_dict['resolution'])
@@ -206,7 +211,7 @@ def make_rabi_sequence(pi_amp, start=0, stop=200e-9, step=2e-9, channels=[1, 4])
     p_dict = get_pulse_dict()
     resolution = 1 / p_dict['sampling_rate']
     readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
-    readout_marker_start = p_dict['readout_start'] - p_dict['marker_readout_delay']
+    readout_marker_start = readout_start - p_dict['marker_readout_delay']
     readout_start_points = round(readout_start / resolution)
     readout_points = round(p_dict['readout_time'] / resolution)
     pulse_end_points = round(p_dict['pulse_end'] / p_dict['resolution'])
@@ -255,7 +260,7 @@ def make_ramsey_sequence(pi_duration, pi_amp, start=0, stop=200e-9, step=2e-9, c
     p_dict = get_pulse_dict()
     resolution = 1 / p_dict['sampling_rate']
     readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
-    readout_marker_start = p_dict['readout_start'] - p_dict['marker_readout_delay']
+    readout_marker_start = readout_start - p_dict['marker_readout_delay']
     readout_start_points = round(readout_start / resolution)
     readout_points = round(p_dict['readout_time'] / resolution)
     pulse_end_points = round(p_dict['pulse_end'] / p_dict['resolution'])

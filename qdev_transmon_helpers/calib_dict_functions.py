@@ -17,7 +17,12 @@ def get_calibration_dict():
     """
     path = get_analysis_location()
     file_name = 'calibration_dict.p'
-    calibration_dict = pickle.load(open(path + file_name, "rb"))
+    try:
+        calibration_dict = pickle.load(open(path + file_name, "rb"))
+    except FileNotFoundError:
+        print('calib dict not found, making one')
+        pickle.dump({}, open(path + file_name, 'wb'))
+        calibration_dict = {}
     return calibration_dict
 
 

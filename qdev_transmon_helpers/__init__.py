@@ -1,4 +1,6 @@
-pulse_building_folder = '/c/Users/qcodes-natalie/PulseBuilding'
+
+import sys
+pulse_building_folder = r'C:\\Users\\qcodes-natalie\\PulseBuilding'
 if pulse_building_folder not in sys.path:
     sys.path.insert(0, pulse_building_folder)
 from pulse_building import Waveform, Element, Sequence
