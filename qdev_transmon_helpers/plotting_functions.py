@@ -45,7 +45,7 @@ def plot_data(data, with_title=True):
             pl = qc.QtPlot(getattr(data, value))
             pl.subplots[0].setTitle(title)
             pl.subplots[0].showGrid(True, True)
-            pl.counter = counter
+            # pl.counter = counter
             plots.append(pl)
     return plots
 

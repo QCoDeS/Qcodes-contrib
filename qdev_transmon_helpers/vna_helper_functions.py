@@ -6,7 +6,8 @@ from scipy import signal
 from . import plot_cf_data, get_latest_counter, get_sample_name, get_title, sweep1d
 
 # TODO: spec mode settings
-# TODO: vna naming/plotting harcoding should be removed, replace with plotting_functions
+# TODO: vna naming/plotting harcoding should be removed, replace with
+# plotting_functions
 
 
 def resonator_sweep_setup(v1, power=-30, pm_range=200e6, avg=5,
@@ -94,11 +95,12 @@ def do_power_sweep(v1, centre, pm_range=10e6,
 
 
 def do_power_sweep(v1, centre, pm_range=10e6, pow_start=-10,
-    pow_stop=-50, pow_step=1, live_plot=True):
+                   pow_stop=-50, pow_step=1, live_plot=True):
     v1.start(centre - pm_range)
     v1.stop(centre + pm_range)
     return sweep1d(v1.trace, v1.power, pow_start, pow_stop, pow_step,
-        live_plot=love_plot)
+                   live_plot=live_plot)
+
 
 def do_ssb_pow_sweep(qubit, acq_ctrl, qubit_freq, qubit_pow_start=-5,
                      qubit_pow_stop=-25, qubit_pow_step=2, live_plot=True):
@@ -110,6 +112,7 @@ def do_ssb_pow_sweep(qubit, acq_ctrl, qubit_freq, qubit_pow_start=-5,
                                             setpoints_stop=qubit_freq - 10e6)
     return sweep1d(acq_ctrl.acquisition, qubit.power, qubit_pow_start,
                    qubit_pow_stop, qubit_pow_step, live_plot=live_plot)
+
 
 def gate_sweep_setup(v1, avg=5, bw=1000, npts=201, power=-40):
     """
@@ -407,4 +410,3 @@ def get_resonator_push(dataset):
         print('dataset has no data_num set: {}'.format(e))
 
     return [low_res, high_res, dif], fig
-

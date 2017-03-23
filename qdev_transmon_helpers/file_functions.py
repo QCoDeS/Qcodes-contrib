@@ -8,7 +8,8 @@ from IPython import get_ipython
 EXPERIMENT_VARS = {'analysis_loc': False,
                    'data_loc_fmt': False,
                    'python_log_loc': False,
-                   'jupyter_log_loc': False}
+                   'jupyter_log_loc': False,
+                   'pulse_loc': False}
 
 
 # TODO: test in_ipynb vs qc.in_notebook (and potentially replace)
@@ -166,7 +167,7 @@ def get_analysis_location():
     """
     Returns:
         analysis_location based on qc.config.user.analysis_location
-        and sample_name if data_location set by calling set_analysis_location()
+        and sample_name if analysis_location set by calling set_analysis_location()
     """
     sample_name = get_sample_name()
     if EXPERIMENT_VARS['analysis_loc']:
@@ -253,6 +254,48 @@ def get_log_locations():
                         ' logs')
 
 
+def set_pulse_location():
+    """
+    Sets location for qcodes to save awg pulses on
+    the qcodes.config.user.pulse_location value and sets pulse_loc
+    in EXPERIMENT_VARS dictionary to True.
+    """
+    sample_name = get_sample_name()
+
+    try:
+        pulse_location = qc.config.user.pulse_location.format(
+            sample_name=sample_name)
+    except KeyError:
+        raise KeyError('pulse_location not set in config, see '
+                       '"https://github.com/QCoDeS/Qcodes/blob/master'
+                       '/docs/examples/Configuring_QCoDeS.ipynb"')
+    if EXPERIMENT_VARS['pulse_loc']:
+        print('Pulse location already set at {}.'.format(pulse_location))
+        print('-------------------------')
+    else:
+        if not os.path.exists(pulse_location):
+            os.makedirs(pulse_location)
+        EXPERIMENT_VARS['pulse_loc'] = True
+        logging.info('Set up pulse location: {}'.format(pulse_location))
+        print('Set up pulse location: {}'.format(pulse_location))
+        print('-------------------------')
+
+
+def get_pulse_location():
+    """
+    Returns:
+        pulse_location based on qc.config.user.pulse_location
+        and sample_name if pulse_location set by calling set_pulse_location()
+    """
+    sample_name = get_sample_name()
+    if EXPERIMENT_VARS['pulse_loc']:
+        return qc.config.user.pulse_location.format(
+            sample_name=sample_name)
+    else:
+        raise Exception(
+            'pulse_location not set, please call set_pulse_location')
+
+
 def set_file_locations():
     """
     Wrapper function which calls set_log_location,
@@ -261,9 +304,10 @@ def set_file_locations():
     set_log_locations()
     set_data_location()
     set_analysis_location()
+    set_pulse_location()
 
 
-def get_latest_counter():
+def get_latest_counter(path=None):
     """
     Really hacky function which looks in the folder the data is
     being stored in and looks for the highest number file name and
@@ -274,7 +318,8 @@ def get_latest_counter():
     Returns:
         latest counter int
     """
-    path = get_data_location()
+    if path is None:
+        path = get_data_location()
     try:
         file_names = [re.sub("[^0-9]", "", f) for f in os.listdir(path)]
     except FileNotFoundError:
