@@ -1,9 +1,9 @@
-from . import check_sample_rate
+from . import check_sample_rate, make_save_send_load_awg_file
 
 
 def set_up_sequence(awg, alazar, acq_controllers, sequence, seq_mode=1):
     check_sample_rate(awg)
-    awg.make_save_send_load_awg_file(awg, sequence)
+    make_save_send_load_awg_file(awg, sequence)
     alazar.seq_mode(seq_mode)
     record_num = len(sequence)
     if seq_mode == 1:
@@ -14,7 +14,9 @@ def set_up_sequence(awg, alazar, acq_controllers, sequence, seq_mode=1):
                     ctrl.acquisition.set_base_setpoints(base_name=sequence.variable,
                                                         base_label=sequence.variable,
                                                         base_unit=sequence.variable_unit,
-                                                        setpoints_start=sequence.start,
-                                                        setpoints_stop=sequence.stop)
+                                                        setpoints_start=sequence.variable_array[0],
+                                                        setpoints_stop=sequence.variable_array[-1])
             except NotImplementedError:
                 pass
+    awg.all_channels_on()
+    awg.run()

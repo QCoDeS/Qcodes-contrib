@@ -54,11 +54,12 @@ def set_current_qubit(index, vna=True, alazar=True):
 
 def update_calibration_val(key, val, qubit_index=None):
     c_dict = get_calibration_dict()
+    vals = c_dict[key].copy()
     if qubit_index is None:
-        c_dict[key][c_dict['current_qubit']] = val
+        vals[c_dict['current_qubit']] = val
     else:
-        c_dict[key][qubit_index] = val
-    update_calibration_dict(c_dict)
+        vals[qubit_index] = val
+    update_calibration_dict({key: vals})
 
 
 def get_calibration_val(key):
@@ -81,7 +82,7 @@ def recalculate_g(dec_chans=None):
             print('New g factor calculated will not be a good estimate '
                   'as current gate value is not the same as the value when '
                   'the push on the resonator was measured.')
-    print('expeced qubit freq: {}\n (from g of {}, push on resonator {})'
+    print('expected qubit freq: {}\n (from g of {}, push on resonator {})\n'
           'actual qubit freq: {}\n (for same push gives g of {}'.format(
               expected, old_g, res_data[2], actual, new_g))
     return new_g

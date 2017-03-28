@@ -2,6 +2,7 @@ import qcodes as qc
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+from . import plot_data_live, plot_data, sweep1d, exp_decay, exp_decay_sin
 
 # TODO: init decision for differentiating between vna functions and alazar
 # functions
@@ -177,10 +178,11 @@ def do_demod_freq_sweep(cavity, localos, acq_ctrl, manual_param,
         qc.Task(acq_ctrl.demod_freqs.add_demodulator,
                 (localos.frequency - cav_freq)),
         qc.Task(manual_param.set, (localos.frequency - cav_freq)),
-        acq_ctrl.acquisition)
+        acq_ctrl.acquisition,
+        manual_param)
     if live_plot:
         dataset = loop.get_data_set()
-        plot = plot_data_live(dataset, acq_ctrl)
+        plot = plot_data_live(dataset, acq_ctrl.acquisition)
         try:
             _ = loop.with_bg_task(plot.update, plot.save).run()  # TODO
         except KeyboardInterrupt:
@@ -194,14 +196,25 @@ def do_demod_freq_sweep(cavity, localos, acq_ctrl, manual_param,
 
 def do_ssb_pow_sweep(qubit, acq_ctrl, qubit_freq, qubit_pow_start=-5,
                      qubit_pow_stop=-25, qubit_pow_step=2, live_plot=True):
-    qubit.frequency(qubit_freq + 10e6)
+    qubit.frequency(qubit_freq + 100e6)
     acq_ctrl.acquisition.set_base_setpoints(base_name='ssb_drive',
                                             base_label='qubit drive freq',
                                             base_unit='Hz',
-                                            setpoints_start=qubit_freq + 10e6,
-                                            setpoints_stop=qubit_freq - 10e6)
+                                            setpoints_start=qubit_freq + 100e6,
+                                            setpoints_stop=qubit_freq - 100e6)
     return sweep1d(acq_ctrl.acquisition, qubit.power, qubit_pow_start,
                    qubit_pow_stop, qubit_pow_step, live_plot=live_plot)
+
+def do_ssb_time_sweep(qubit, acq_ctrl, manual_param, qubit_freq, time=500,
+                     live_plot=True):
+    qubit.frequency(qubit_freq + 100e6)
+    acq_ctrl.acquisition.set_base_setpoints(base_name='ssb_drive',
+                                            base_label='qubit drive freq',
+                                            base_unit='Hz',
+                                            setpoints_start=qubit_freq + 100e6,
+                                            setpoints_stop=qubit_freq - 100e6)
+    return sweep1d(acq_ctrl.acquisition, manual_param, 0,
+                   time, 1, live_plot=live_plot)
 
 
 def do_rabi_freq_sweep(qubit, acq_ctrl, qubit_freq, qubit_freq_pm=4e6,
@@ -228,9 +241,11 @@ def do_ramsey_freq_sweep(qubit, acq_ctrl, qubit_freq, qubit_freq_pm=4e6,
 
 def get_t1(data, x_name='delay', y_name='magnitude',
            counter=None, plot=True, subplot=None):
-    xdata = getattr(data, x_name)
-    ydata = getattr(data, y_name)
-    popt, pcov = curve_fit(exp_decay, xdata, ydata)
+    x_data = getattr(getattr(data, x_name), 'ndarray')
+    y_data = getattr(getattr(data, y_name), 'ndarray')
+    x_units = getattr(getattr(data, x_name), 'unit')
+    y_units = getattr(getattr(data, y_name), 'unit')
+    popt, pcov = curve_fit(exp_decay, x_data, y_data, p0=[0.05, 1e-6, 0.01])
     errors = np.sqrt(np.diag(pcov))
     print('fit to equation of form y = a * exp(-x / b) + c gives:\n'
           'a {}, b {}, c {}\n'
@@ -243,12 +258,6 @@ def get_t1(data, x_name='delay', y_name='magnitude',
         else:
             ax = subplot
             fig = ax.figure
-        try:
-            x_units = xdata.units
-            y_units = ydata.units
-        except AttributeError:
-            x_units = None
-            y_units = None
         if counter is None:
             try:
                 counter = data.location_provider.counter
@@ -260,14 +269,19 @@ def get_t1(data, x_name='delay', y_name='magnitude',
         else:
             title = get_title(counter) + '_T1'
         fig.counter = counter
-        ax.plot(exp_decay(xdata, *popt), label='fit: T1 {}{}'.format(popt[1],
+        ax.plot(x_data, exp_decay(x_data, *popt), label='fit: T1 {}{}'.format(popt[1],
                                                                      x_units))
-        ax.plot(ydata, label='data')
+        ax.plot(x_data, y_data, label='data')
         ax.set_xlabel('{} ({})'.format(x_name, x_units))
         ax.set_ylabel('{} ({})'.format(y_name, y_units))
         ax.set_title(title)
         ax.legend(loc='upper right', fontsize=10)
-        save_fig(ax, name='t1_fit')
+        try:
+          qubit = get_calibration_dict()['current_qubit']
+          name = 'qubit{}_t1'.format(qubit)
+        except Exception:
+          name='t1'
+        save_fig(ax, name=name)
         return ax, popt, errors
     else:
         return popt, errors
@@ -275,29 +289,25 @@ def get_t1(data, x_name='delay', y_name='magnitude',
 
 def get_t2(data, x_name='delay', y_name='magnitude',
            counter=None, plot=True, subplot=None):
-    xdata = getattr(data, x_name)
-    ydata = getattr(data, y_name)
-    popt, pcov = curve_fit(exp_decay_sin, xdata, ydata)
+    x_data = getattr(getattr(data, x_name), 'ndarray')
+    y_data = getattr(getattr(data, y_name), 'ndarray')
+    x_units = getattr(getattr(data, x_name), 'unit')
+    y_units = getattr(getattr(data, y_name), 'unit')
+    popt, pcov = curve_fit(exp_decay_sin, x_data, y_data, p0=[0.003, 1e-7, 10e7, 0, 0.01])
     errors = np.sqrt(np.diag(pcov))
     print('fit to equation of form y = a * exp(-x / b) * sin(c * x + d) + e'
           'gives:\na {}, b {}, c {}, d {}, e{}\n'
           'with one standard deviation errors:\n'
           'a {}, b {}, c {}, d {}, e{}'.format(popt[0], popt[1], popt[2],
-                                               popt[4], popt[5], errors[0],
+                                               popt[3], popt[4], errors[0],
                                                errors[1], errors[2],
-                                               errors[4], errors[4]))
+                                               errors[3], errors[4]))
     if plot:
         if subplot is None:
             fig, ax = plt.subplots()
         else:
             ax = subplot
             fig = ax.figure
-        try:
-            x_units = xdata.units
-            y_units = ydata.units
-        except AttributeError:
-            x_units = None
-            y_units = None
         if counter is None:
             try:
                 counter = data.location_provider.counter
@@ -309,14 +319,19 @@ def get_t2(data, x_name='delay', y_name='magnitude',
         else:
             title = get_title(counter) + '_T2*'
         fig.counter = counter
-        ax.plot(exp_decay(xdata, *popt), label='fit: T1 {}{}'.format(popt[1],
+        ax.plot(x_data, exp_decay_sin(x_data, *popt), label='fit: T2 {}{}'.format(popt[1],
                                                                      x_units))
-        ax.plot(ydata, label='data')
+        ax.plot(x_data, y_data, label='data')
         ax.set_xlabel('{} ({})'.format(x_name, x_units))
         ax.set_ylabel('{} ({})'.format(y_name, y_units))
         ax.set_title(title)
         ax.legend(loc='upper right', fontsize=10)
-        save_fig(ax, name='t2_fit')
+        try:
+          qubit = get_calibration_dict()['current_qubit']
+          name = 'qubit{}_t1'.format(qubit)
+        except Exception:
+          name='t1'
+        save_fig(ax, name=name)
         return ax, popt, errors
     else:
         return popt, errors

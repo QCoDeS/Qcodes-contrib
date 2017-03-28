@@ -7,7 +7,8 @@ from . import plot_data_live, plot_data
 
 
 def sweep2d(meas_param, sweep_param1, start1, stop1, step1,
-            sweep_param2, start2, stop2, step2, delay=0.01, live_plot=True):
+            sweep_param2, start2, stop2, step2, delay=0.01,
+            live_plot=True):
     loop = qc.Loop(sweep_param2.sweep(
         start2, stop2, step2), delay).loop(sweep_param1.sweep(
             start1, stop1, step1), delay).each(meas_param)
@@ -15,44 +16,46 @@ def sweep2d(meas_param, sweep_param1, start1, stop1, step1,
         dataset = loop.get_data_set()
         plot = plot_data_live(dataset, meas_param)
         try:
-            _ = loop.with_bg_task(plot.update, plot.save).run()  # TODO
+            _ = loop.with_bg_task(plot.update).run()  # TODO
         except KeyboardInterrupt:
             print("Measurement Interrupted")
+        print('warning: plots not saved, if you want to save this'
+            'plot run plot.save()')
         return dataset, plot
-    else: # TODO: switch this back when plot_data fixed
-        # data = loop.run()
-        # plots = plot_data(data)
-        # print('warning: plots not saved, choose a plot to save '
-        #       'and run plots[i].save()')
-        # return data, plots
-        return data
+    else:
+        data = loop.run()
+        plots = plot_data(data)
+        print('warning: plots not saved, choose a plot to save '
+              'and run plots[i].save()')
+        return data, plots
 
 
 def sweep1d(meas_param, sweep_param, start, stop, step,
-            delay=0.01, live_plot=True):
+            delay=0.01,live_plot=True):
     loop = qc.Loop(sweep_param.sweep(
         start, stop, step), delay).each(meas_param)
     if live_plot:
         dataset = loop.get_data_set()
         plot = plot_data_live(dataset, meas_param)
         try:
-            _ = loop.with_bg_task(plot.update, plot.save).run()  # TODO
+            _ = loop.with_bg_task(plot.update).run()  # TODO
         except KeyboardInterrupt:
             print("Measurement Interrupted")
+        print('warning: plots not saved, if you want to save this'
+            'plot run plot.save()')
         return dataset, plot
     else: # TODO: switch this back when plot_data fixed
-        # data = loop.run()
-        # plots = plot_data(data)
-        # print('warning: plots not saved, choose a plot to save '
-        #       'and run plots[i].save()')
-        # return data, plots
-        return data
+        data = loop.run()
+        plots = plot_data(data)
+        print('warning: plots not saved, choose a plot to save '
+              'and run plots[i].save()')
+        return data, plots
 
 
 def measure(meas_param, plot=True):
     data = qc.Measure(meas_param).run()
     if plot:
-        plots = plot_data_live(data, meas_param) # TODO: switch this back when plot_data fixed
+        plots = plot_data(data)
         print('warning: plots not saved, choose a plot to save '
               'and run plots[i].save()')
         return data, plots

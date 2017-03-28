@@ -90,28 +90,16 @@ def do_power_sweep(v1, centre, pm_range=10e6,
     except KeyboardInterrupt:
         print("Measurement Interrupted")
     dataset.data_num = data_num
-    plot.data_num = data_num
+    plot.counter = data_num
     return dataset, plot
 
 
-def do_power_sweep(v1, centre, pm_range=10e6, pow_start=-10,
-                   pow_stop=-50, pow_step=1, live_plot=True):
-    v1.start(centre - pm_range)
-    v1.stop(centre + pm_range)
-    return sweep1d(v1.trace, v1.power, pow_start, pow_stop, pow_step,
-                   live_plot=live_plot)
-
-
-def do_ssb_pow_sweep(qubit, acq_ctrl, qubit_freq, qubit_pow_start=-5,
-                     qubit_pow_stop=-25, qubit_pow_step=2, live_plot=True):
-    qubit.frequency(qubit_freq + 10e6)
-    acq_ctrl.acquisition.set_base_setpoints(base_name='ssb_drive',
-                                            base_label='qubit drive freq',
-                                            base_unit='Hz',
-                                            setpoints_start=qubit_freq + 10e6,
-                                            setpoints_stop=qubit_freq - 10e6)
-    return sweep1d(acq_ctrl.acquisition, qubit.power, qubit_pow_start,
-                   qubit_pow_stop, qubit_pow_step, live_plot=live_plot)
+# def do_power_sweep(v1, centre, pm_range=10e6, pow_start=-10,
+#                    pow_stop=-50, pow_step=1, live_plot=True):
+#     v1.start(centre - pm_range)
+#     v1.stop(centre + pm_range)
+#     return sweep1d(v1.trace, v1.power, pow_start, pow_stop, pow_step,
+#                    live_plot=live_plot)
 
 
 def gate_sweep_setup(v1, avg=5, bw=1000, npts=201, power=-40):
@@ -181,7 +169,7 @@ def do_gate_sweep(v1, centre, chan, reset_after=True, pm_range=10e6,
     if reset_after:
         chan(gate_start)
     data.data_num = get_latest_counter()
-    plot.data_num = get_latest_counter()
+    plot.counter = get_latest_counter()
     return data, plot
 
 
@@ -277,7 +265,7 @@ def find_peaks(dataset, fs, cutoff=30e9, order=5,
         frequencies (array): frequencies of resonances found
         subplot (matplotlib AxesSubplot): plot of results
     """
-    setpoints = dataset.frequency
+    setpoints = next(getattr(dataset, key) for key in dataset.arrays.keys() if "set" in key)
 
     # smooth data
     unsmoothed_data = dataset.vna_magnitude
@@ -290,7 +278,8 @@ def find_peaks(dataset, fs, cutoff=30e9, order=5,
     try:
         num = dataset.data_num
     except AttributeError:
-        raise AttributeError('dataset has no data_num')
+        num = dataset.location_provider.counter
+        print('warning: check title, could be wrong datanum')
 
     # plot: unsmoothed data, smoothed data and add peak estimate values
     fig, subplot = plot_cf_data(unsmoothed_data,
@@ -325,17 +314,24 @@ def plot_resonances(dataset, indices, subplot=None):
         subplot = plt.subplot(111)
         try:
             # TODO: replace with data.location_provider.counter?
-            fig.data_num = dataset.data_num
+            fig.counter = dataset.data_num
         except AttributeError as e:
             print('dataset has no data_num set: {}'.format(e))
 
-    setpoints = dataset.frequency
+    setpoints = next(getattr(dataset, key) for key in dataset.arrays.keys() if "set" in key)
     magnitude = dataset.vna_magnitude
     subplot.plot(setpoints, magnitude, 'b')
     subplot.plot(setpoints[indices], magnitude[indices], 'gs')
     subplot.set_xlabel('frequency(Hz)')
     subplot.set_ylabel('S21')
-    subplot.figure.suptitle('dataset {}'.format(fig.data_num), fontsize=12)
+
+    try:
+        num = dataset.data_num
+    except AttributeError:
+        num = dataset.location_provider.counter
+        print('warning: check title, could be wrong datanum')
+
+    subplot.figure.suptitle('{}'.format(num), fontsize=12)
     # TODO save this info!!
     return subplot
 
@@ -356,7 +352,7 @@ def get_resonator_push(dataset):
     """
     # get data for high and low power from dataset
     mag_arrays = dataset.vna_magnitude
-    freq_array = dataset.frequency[0]
+    freq_array = dataset.frequency_set[0]
     pow_array = dataset.vna_power_set
     mag_high = mag_arrays[0]
     mag_low = mag_arrays[-1]
@@ -402,11 +398,14 @@ def get_resonator_push(dataset):
 
     try:
         # TODO: replace with data.location_provider.counter?
-        fig.data_num = dataset.data_num
-        fig.suptitle('dataset {}'.format(fig.data_num), fontsize=12)
+        fig.counter = dataset.data_num
+        fig.suptitle('dataset {}'.format(fig.counter), fontsize=12)
         fig.text(0, 0, 'bare res: {}, pushed res: {}, push: {}'.format(
             high_res, low_res, dif))
     except AttributeError as e:
+        fig.counter = dataset.location_provider.counter
         print('dataset has no data_num set: {}'.format(e))
 
     return [low_res, high_res, dif], fig
+
+

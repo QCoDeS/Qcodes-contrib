@@ -1,42 +1,38 @@
 import qcodes as qc
 import matplotlib.pyplot as plt
 import numpy as np
-from . import get_sample_name, get_data_file_format, get_calibration_dict
 
 # TODO: check x and y behaviour of plotting if not specified
 # TODO: remove commented out code!
 # TODO: docstrings
+
+def get_title(counter, current_qubit=None):
+    str_counter = '{0:03d}'.format(counter)
+    if current_qubit is None:
+        title = "{counter}_{sample_name}".format(
+            sample_name=get_sample_name(),
+            counter=str_counter)
+    else:
+        try:
+            title = "{counter}_{sample_name}_qubit{current_qubit}".format(
+                sample_name=get_sample_name(),
+                counter=str_counter,
+                current_qubit=current_qubit)
+        except Exception:
+            title = "{counter}_{sample_name}".format(
+                sample_name=get_sample_name(),
+                counter=str_counter)
+    return title
 
 ##########################
 # QtPlot - data plotting #
 ##########################
 
 
-def get_title(counter, single_qubit=True):
-    str_counter = '{0:03d}'.format(counter)
-    if not single_qubit:
-        title = get_data_file_format().format(
-            sample_name=get_sample_name(),
-            counter=str_counter)
-    else:
-        try:
-            current_qubit = get_calibration_dict()['current_qubit']
-            title = (get_data_file_format().format(
-                sample_name=get_sample_name(),
-                counter=str_counter) +
-                '_qubit{}'.format(current_qubit))
-        except Exception:
-            title = get_data_file_format().format(
-                sample_name=get_sample_name(),
-                counter=str_counter)
-    return title
-
-
-def plot_data(data, with_title=True):
-    # CURRENTELY BROKEN
+def plot_data(data, current_qubit=None, with_title=True):
     counter = data.location_provider.counter
     if with_title is True:
-        title = get_title(counter)
+        title = get_title(counter, current_qubit=current_qubit)
     else:
         title = ''
     plots = []
@@ -50,10 +46,10 @@ def plot_data(data, with_title=True):
     return plots
 
 
-def plot_data_live(dataset, meas_param, with_title=True):
+def plot_data_live(dataset, meas_param, current_qubit=None, with_title=True):
     counter = dataset.location_provider.counter
     if with_title is True:
-        title = get_title(counter)
+        title = get_title(counter, current_qubit=current_qubit)
     else:
         title = ''
     plot = qc.QtPlot()
@@ -68,6 +64,7 @@ def plot_data_live(dataset, meas_param, with_title=True):
             plot.subplots[i].setTitle("")
     plot.counter = counter
     return plot
+
 
 ###############################
 # MatPlot - analysis plotting #
@@ -104,7 +101,7 @@ def plot_cf_data(data1, data2, data3=None, data4=None, datanum=None,
         fig, sub = plt.subplots()
     if datanum is not None:
         sub.figure.counter = datanum
-        sub.set_title('{}_{0:03d}'.format(get_sample_name(), datanum))
+        sub.set_title(get_title(datanum))
     if len(legend_labels) < 4:
         legend_labels.extend([[]] * (4 - len(legend_labels)))
     if xdata is None:
