@@ -5,7 +5,7 @@ vna_dict_keys = ['expected_qubit_positions', 'g_values',
                  'resonances', 'resonator_pushes', 'gatability', 'gate_volts']
 alazar_dict_keys = ['current_qubit', 'int_times', 'int_delays', 'cavity_freqs',
                     'cavity_pows', 'demod_freqs', 'pi_pulse_amplitudes', 't1s',
-                    't1_errors', 'actual_qubit_positions',
+                    't1_errors', 't2s', 't2_errrors', 'actual_qubit_positions',
                     'pi_pulse_durations', 'pi_pulse_powers']
 
 
@@ -51,6 +51,9 @@ def set_current_qubit(index, vna=True, alazar=True):
     update_calibration_dict({'current_qubit': index})
     print('current_qubit set to {}'.format(index))
 
+def get_current_qubit(vna=True, alazar=True):
+    c_dict = get_calibration_dict()
+    return c_dict['current_qubit']
 
 def update_calibration_val(key, val, qubit_index=None):
     c_dict = get_calibration_dict()

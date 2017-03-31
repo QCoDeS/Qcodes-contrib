@@ -2,6 +2,7 @@ import qcodes as qc
 import re
 import os
 from qcodes.plots.pyqtgraph import QtPlot
+import matplotlib.pyplot as plt
 from time import localtime, strftime
 import logging
 from IPython import get_ipython
@@ -364,7 +365,7 @@ def load(counter, plot=True):
         plots = []
         for value in data.arrays.keys():
             if "set" not in value:
-                pl = qc.QtPlot(getattr(data, value))
+                pl = qc.QtPlot(getattr(data, value), figsize=(700, 500))
                 pl.subplots[0].setTitle(title)
                 pl.subplots[0].showGrid(True, True)
                 plots.append(pl)
@@ -447,21 +448,28 @@ def save_fig(plot_to_save, name='analysis', counter=None, pulse=False):
 ##########################
 
 
-def plot_data(data, with_title=True):
+def plot_data(data, with_title=True, key=None):
     counter = data.location_provider.counter
     if with_title is True:
         title = get_title(counter)
     else:
         title = ''
-    plots = []
-    for value in data.arrays.keys():
-        if "set" not in value:
-            pl = qc.QtPlot(getattr(data, value))
-            pl.subplots[0].setTitle(title)
-            pl.subplots[0].showGrid(True, True)
-            plots.append(pl)
-    return plots
-
+    if key is None:
+        plots = []
+        for value in data.arrays.keys():
+            if "set" not in value:
+                pl = qc.QtPlot(getattr(data, value), figsize=(700, 500))
+                pl.subplots[0].setTitle(title)
+                pl.subplots[0].showGrid(True, True)
+                plots.append(pl)
+        return plots
+    else:
+        for value in data.arrays.keys():
+            if key in value:
+                pl = qc.QtPlot(getattr(data, value), figsize=(700, 500))
+                pl.subplots[0].setTitle(title)
+                pl.subplots[0].showGrid(True, True)
+        return pl
 
 def plot_data_live(dataset, meas_param, with_title=True):
     counter = dataset.location_provider.counter
@@ -469,7 +477,7 @@ def plot_data_live(dataset, meas_param, with_title=True):
         title = get_title(counter)
     else:
         title = ''
-    plot = qc.QtPlot()
+    plot = qc.QtPlot(figsize=(700 * len(meas_param.names), 500))
     for i, name in enumerate(meas_param.names):
         inst_meas_name = "{}_{}".format(meas_param._instrument.name, name)
         plot.add(getattr(dataset, inst_meas_name), subplot=i + 1)

@@ -21,6 +21,8 @@ def import_decadac(port=5, station=None):
         dec_slots.append(Decadac('dec_slot_{}'.format(s), port=5, slot=s))
         if station is not None:
             station.add_component(dec_slots[s])
+        dec_slots[s].mode(2)
+
 
     for c in range(qubit_count):
         slot_i = int(np.floor(c / 4))

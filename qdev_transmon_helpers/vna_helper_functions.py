@@ -1,9 +1,7 @@
 import qcodes as qc
 import numpy as np
 import matplotlib.pyplot as plt
-from math import factorial
-from scipy import signal
-from . import plot_cf_data, get_latest_counter, get_sample_name, get_title, sweep1d
+from . import plot_cf_data, get_latest_counter, get_sample_name, get_title, sweep1d, smooth_data_butter, smooth_data_SG
 
 # TODO: spec mode settings
 # TODO: vna naming/plotting harcoding should be removed, replace with
@@ -130,7 +128,7 @@ def gates_to_zero(dec_chans):
         chan(0)
 
 
-def do_gate_sweep(v1, centre, chan, reset_after=True, pm_range=10e6,
+def do_gate_sweep(v1, centre, chan, reset_after=False, pm_range=10e6,
                   gate_start=0, gate_stop=-0.1, gate_step=0.01):
     """
     Function which sweeps gate voltage in a loop and takes vna trace data
@@ -173,77 +171,8 @@ def do_gate_sweep(v1, centre, chan, reset_after=True, pm_range=10e6,
     return data, plot
 
 
-def smooth_data_SG(y, window_size, order, deriv=0, rate=1):
-    """
-    Function which does savitzky_golay data smoothing method
 
-    Args:
-        y (numpy array): array for filtering
-        window_size (int): size of window in points for smoothing
-        order (int): polynomial order to use for smoothing
-
-    Returns:
-        filtered array
-    """
-    try:
-        window_size = np.abs(np.int(window_size))
-        order = np.abs(np.int(order))
-    except ValueError:
-        raise ValueError("window_size and order have to be of type int")
-    if window_size % 2 != 1 or window_size < 1:
-        raise TypeError("window_size size must be a positive odd number")
-    if window_size < order + 2:
-        raise TypeError("window_size is too small for the polynomials order")
-    order_range = range(order + 1)
-    half_window = (window_size - 1) // 2
-
-    # precompute coefficients
-    b = np.mat([[k**i for i in order_range]
-                for k in range(-half_window, half_window + 1)])
-    m = np.linalg.pinv(b).A[deriv] * rate**deriv * factorial(deriv)
-
-    # pad the signal at the extremes with values taken from the signal itself
-    firstvals = y[0] - np.abs(y[1:half_window + 1][::-1] - y[0])
-    lastvals = y[-1] + np.abs(y[-half_window - 1:-1][::-1] - y[-1])
-    y = np.concatenate((firstvals, y, lastvals))
-
-    return np.convolve(m[::-1], y, mode='valid')
-
-
-def butter_lowpass(cutoff, fs, order):
-    """
-    Function which generates scipy butterworth filter to data
-
-    Args:
-        cutoff (float): frequency above which components should be removed
-        order (int): filter order
-
-    Returns:
-        filter coefs: (numerator and denominator polynomials of IIR filter)
-    """
-    nyq = 0.5 * fs
-    normal_cutoff = cutoff / nyq
-    b, a = signal.butter(order, normal_cutoff, btype='low', analog=False)
-    return b, a
-
-
-def smooth_data_butter(data, fs, cutoff, order):
-    """
-    Function which applies butterwoth filter to data
-
-    Args:
-        data (numpy array)
-        cutoff (float): passed to butter_lowpass
-
-    Returns:
-        filtered data
-    """
-    b, a = butter_lowpass(cutoff, fs, order=order)
-    y = signal.filtfilt(b, a, data)
-    return y
-
-
-def find_peaks(dataset, fs, cutoff=30e9, order=5,
+def find_peaks(dataset, fs, cutoff=0.2e-6, order=5,
                subplot=None, widths=np.linspace(1, 150)):
     """
     Function which given a 1d array smoothes the data and finds resonances

@@ -12,7 +12,7 @@ def set_up_sequence(awg, alazar, acq_controllers, sequence, seq_mode=1):
                 ctrl.records_per_buffer(record_num)
                 if sequence.variable is not None:
                     ctrl.acquisition.set_base_setpoints(base_name=sequence.variable,
-                                                        base_label=sequence.variable,
+                                                        base_label=sequence.variable_label,
                                                         base_unit=sequence.variable_unit,
                                                         setpoints_start=sequence.variable_array[0],
                                                         setpoints_stop=sequence.variable_array[-1])
