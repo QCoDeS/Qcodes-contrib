@@ -142,6 +142,50 @@ def make_ssb_qubit_seq(start=0, stop=200e6, step=1e6, channels=[1, 2, 4]):
     return ssb_sequence
 
 
+def make_ssb_readout_sequence(start=0, stop=200e6, step=1e6, channels=[3, 4]):
+    validate_pulse_dictionary()
+    ssb_sequence = Sequence(name='readout_ssb',
+                            variable='sideband_modulation_freq',
+                            variable_unit='Hz',
+                            step=step,
+                            start=start,
+                            stop=stop)
+
+    p_dict = get_pulse_dict()
+    resolution = 1 / p_dict['sample_rate']
+    readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
+    readout_marker_start = readout_start - p_dict['marker_readout_delay']
+    readout_start_points = round(readout_start / resolution)
+    readout_points = round(p_dict['readout_time'] / resolution)
+    readout_marker_start_points = round(readout_marker_start / resolution)
+    pulse_end_points = round(p_dict['pulse_end'] / resolution)
+    marker_points = round(p_dict['marker_time'] / resolution)
+    total_points = round(p_dict['cycle_duration'] / resolution)
+
+    readout_time_array = np.arange(readout_points) * resolution
+    freq_array = ssb_sequence.variable_array
+
+    for i, freq in enumerate(freq_array):
+        element = Element()
+        element.add_waveform(readout_waveform)
+        qubit_i = Waveform(length=points, channel=1)
+        qubit_q = Waveform(length=points, channel=2)
+        if i == 0:
+            qubit_i.marker_1[0:100] = 1
+            qubit_waveform.marker_2[0:100] = 1
+        qubit_start = pulse_end_points - qubit_points
+        qubit_end = pulse_end_points
+        angle = qubit_time_array * freq * 2 * np.pi
+        cos_array = np.cos(angle)
+        sin_array = np.sin(angle)
+        qubit_i.wave[qubit_start:qubit_end] = cos_array
+        qubit_q.wave[qubit_start:qubit_end] = sin_array
+        element.add_waveform(qubit_i)
+        element.add_waveform(qubit_q)
+        ssb_sequence.add_element(element)
+
+    ssb_sequence.check()
+
 def make_t1_seq(pi_duration, pi_amp, start=0, stop=5e-6, step=50e-9, channels=[1, 4]):
     validate_pulse_dictionary()
     t1_sequence = Sequence(name='t1',
@@ -288,6 +332,7 @@ def make_ramsey_sequence(pi_duration, pi_amp, start=0, stop=200e-9, step=2e-9, c
         ramsey_sequence.add_element(element)
     ramsey_sequence.check()
     return ramsey_sequence
+
 
 def plot_sequence(sequence, elemnum=0, channels=[1, 2]):
     fig = plt.figure()

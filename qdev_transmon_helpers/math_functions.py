@@ -37,7 +37,7 @@ def g_from_qubit(qubit, bare_res, push):
     return sqrt(delta * push)
 
 
-def resonator_from_qubit(qubit, g, bare_res)
+def resonator_from_qubit(qubit, g, bare_res):
     delta = bare_res - qubit
     push = g**2 / delta
     return bare_res + push 
