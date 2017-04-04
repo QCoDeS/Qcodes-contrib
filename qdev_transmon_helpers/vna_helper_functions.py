@@ -2,6 +2,7 @@ import qcodes as qc
 import numpy as np
 import matplotlib.pyplot as plt
 from . import plot_cf_data, get_latest_counter, get_sample_name, get_title, sweep1d, smooth_data_butter, smooth_data_SG
+from scipy import signal
 
 # TODO: spec mode settings
 # TODO: vna naming/plotting harcoding should be removed, replace with
@@ -80,7 +81,7 @@ def do_power_sweep(v1, centre, pm_range=10e6,
     # data_num = dataset.location_provider.counter
     # title = get_title(data_num)
     plot = qc.QtPlot(figsize=(700, 500))
-    plot.add(dataset.vna_magnitude)
+    plot.add(dataset.vna_linear_magnitude)
     plot.subplots[0].showGrid(True, True)
     plot.subplots[0].setTitle(title)
     try:
@@ -150,14 +151,14 @@ def do_gate_sweep(v1, centre, chan, reset_after=False, pm_range=10e6,
         data (qcodes DataSet)
         plot (QtPlot)
     """
-    data_num = get_latest_counter()
+    data_num = get_latest_counter() + 1
     title = get_title(data_num)
     v1.start(centre - pm_range)
     v1.stop(centre + pm_range)
     loop = qc.Loop(chan.sweep(gate_start, gate_stop, gate_step)).each(v1.trace)
     data = loop.get_data_set()
     plot = qc.QtPlot(figsize=(700, 500))
-    plot.add(data.vna_magnitude)
+    plot.add(data.vna_linear_magnitude)
     plot.subplots[0].showGrid(True, True)
     plot.subplots[0].setTitle(title)
     try:
@@ -166,8 +167,8 @@ def do_gate_sweep(v1, centre, chan, reset_after=False, pm_range=10e6,
         print("Measurement Interrupted")
     if reset_after:
         chan(gate_start)
-    data.data_num = get_latest_counter()
-    plot.counter = get_latest_counter()
+    data.data_num = data_num
+    plot.counter = data_num
     return data, plot
 
 
@@ -197,7 +198,7 @@ def find_peaks(dataset, fs, cutoff=0.2e-6, order=5,
     setpoints = next(getattr(dataset, key) for key in dataset.arrays.keys() if "set" in key)
 
     # smooth data
-    unsmoothed_data = dataset.vna_magnitude
+    unsmoothed_data = dataset.vna_linear_magnitude
     smoothed_data = smooth_data_butter(
         unsmoothed_data, fs, cutoff=cutoff, order=order)
 
@@ -248,7 +249,7 @@ def plot_resonances(dataset, indices, subplot=None):
             print('dataset has no data_num set: {}'.format(e))
 
     setpoints = next(getattr(dataset, key) for key in dataset.arrays.keys() if "set" in key)
-    magnitude = dataset.vna_magnitude
+    magnitude = dataset.vna_linear_magnitude
     subplot.plot(setpoints, magnitude, 'b')
     subplot.plot(setpoints[indices], magnitude[indices], 'gs')
     subplot.set_xlabel('frequency(Hz)')
@@ -280,7 +281,7 @@ def get_resonator_push(dataset):
         axarr (numpy.ndarray): subplot array
     """
     # get data for high and low power from dataset
-    mag_arrays = dataset.vna_magnitude
+    mag_arrays = dataset.vna_linear_magnitude
     freq_array = dataset.frequency_set[0]
     pow_array = dataset.vna_power_set
     mag_high = mag_arrays[0]

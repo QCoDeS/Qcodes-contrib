@@ -421,7 +421,7 @@ def get_t2(data, x_name='delay', y_name='magnitude',
         if counter is None:
             try:
                 counter = data.location_provider.counter
-                title = get_title(counter) + '_T1'
+                title = get_title(counter) + '_T2'
                 if not hasattr(fig, 'counter'):
                     fig.counter = counter
             except AttributeError:
@@ -440,7 +440,7 @@ def get_t2(data, x_name='delay', y_name='magnitude',
           qubit = get_calibration_dict()['current_qubit']
           name = 'qubit{}_t2'.format(qubit)
         except Exception:
-          name='t1'
+          name='t2'
         save_fig(ax, name=name)
         return ax, popt, errors
     else:

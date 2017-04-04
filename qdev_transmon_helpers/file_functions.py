@@ -358,6 +358,7 @@ def load(counter, plot=True):
     data = qc.load_data(
         qc.DataSet.location_provider.fmt.format(sample_name=get_sample_name(),
                                                 counter=str_counter))
+    data.data_num = counter
 
     if plot:
         # TODO: replace when counter works: plots = plot_data(data)
@@ -374,30 +375,13 @@ def load(counter, plot=True):
         return data
 
 
-    # if plot:
-    #     # plot default parameter or all paraters which aren't setpoint
-    #     # arrays if plot_all is True
-    #     plot = qc.QtPlot()
-    #     if not plot_all:
-    #         plot.add(loaded_data.default_parameter_array())
-    #     else:
-    #         for i, array_key in enumerate(loaded_data.arrays.keys()):
-    #             data_array = loaded_data.arrays[array_key]
-    #         if not data_array.is_setpoint:
-    #             plot.add(data_array, subplot=i + 1)
-    #         plot.data_num = num
-    #     return loaded_data, plot
-    # else:
-    #     return loaded_data
+def save_plot(dataset, key):
+    if isinstance(dataset, int):
+        dataset = load(dataset, plot=False)
+    plot = plot_data(dataset, with_title=True, key=key)
+    plot.save()
+    return plot
 
-    # if plot:
-    #     pl_var = plot_variable or dataset.default_parameter_array()
-    #     pl = qc.QtPlot(pl_var, figsize=(700, 500))
-    #     pl.save()
-    #     pl.data_num = get_latest_counter()
-    #     return dataset, pl
-    # else:
-    #     return dataset
 
 
 def save_fig(plot_to_save, name='analysis', counter=None, pulse=False):

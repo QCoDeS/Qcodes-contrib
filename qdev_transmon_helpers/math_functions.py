@@ -1,5 +1,6 @@
 import numpy as np
 from math import sqrt, factorial
+from scipy import signal
 
 # TODO: docstrings
 
