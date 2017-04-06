@@ -1,11 +1,12 @@
 import qcodes as qc
 import re
 import os
-from qcodes.plots.pyqtgraph import QtPlot
+import numoy as np
 import matplotlib.pyplot as plt
 from time import localtime, strftime
 import logging
 from IPython import get_ipython
+
 EXPERIMENT_VARS = {'analysis_loc': False,
                    'data_loc_fmt': False,
                    'python_log_loc': False,
@@ -39,7 +40,7 @@ def set_qubit_count(count):
     Sets qubit_count in EXPERIMENT_VARS dictionary
 
     Args:
-        count
+        count (int)
     """
     EXPERIMENT_VARS['qubit_count'] = count
 
@@ -47,7 +48,7 @@ def set_qubit_count(count):
 def get_qubit_count():
     """
     Returns:
-        value of qubit_count in EXPERIMENT_VARS dictionary
+        value of qubit_count in EXPERIMENT_VARS dictionary (int)
     """
     try:
         return EXPERIMENT_VARS['qubit_count']
@@ -68,7 +69,7 @@ def set_sample_name(name):
 def get_sample_name():
     """
     Returns:
-        value of sample_name in EXPERIMENT_VARS dictionary.
+        value of sample_name in EXPERIMENT_VARS dictionary (str).
     """
     try:
         return EXPERIMENT_VARS['sample_name']
@@ -113,7 +114,7 @@ def set_data_location():
 def get_data_location():
     """
     Returns:
-        location of data and pngs from qc.config.user.data_location and
+        location of data and pngs (str): from qc.config.user.data_location and
         sample_name if data_location set by calling set_data_location()
     """
     sample_name = get_sample_name()
@@ -127,8 +128,9 @@ def get_data_location():
 def get_data_file_format():
     """
     Returns
-        format of name given to data files from qc.config.user.data_format
-        if data_location set by calling set_data_location()
+        format of name given to data files (str): from
+        qc.config.user.data_format if data_location set by calling
+        set_data_location()
     """
     if EXPERIMENT_VARS['data_loc_fmt']:
         dat_fmt = qc.config.user.data_format
@@ -167,8 +169,9 @@ def set_analysis_location():
 def get_analysis_location():
     """
     Returns:
-        analysis_location based on qc.config.user.analysis_location
-        and sample_name if analysis_location set by calling set_analysis_location()
+        analysis_location (str) based on qc.config.user.analysis_location
+        and sample_name if analysis_location set by calling
+        set_analysis_location()
     """
     sample_name = get_sample_name()
     if EXPERIMENT_VARS['analysis_loc']:
@@ -285,7 +288,7 @@ def set_pulse_location():
 def get_pulse_location():
     """
     Returns:
-        pulse_location based on qc.config.user.pulse_location
+        pulse_location (str): based on qc.config.user.pulse_location
         and sample_name if pulse_location set by calling set_pulse_location()
     """
     sample_name = get_sample_name()
@@ -300,7 +303,7 @@ def get_pulse_location():
 def set_file_locations():
     """
     Wrapper function which calls set_log_location,
-    set_data_location and set_analysis_location.
+    set_data_location, set_analysis_location and set_pulse_location.
     """
     set_log_locations()
     set_data_location()
@@ -317,27 +320,32 @@ def get_latest_counter(path=None):
     other data sets etc.
 
     Returns:
-        latest counter int
+        latest counter (int)
     """
     if path is None:
         path = get_data_location()
     try:
         file_names = [re.sub("[^0-9]", "", f) for f in os.listdir(path)]
-    except FileNotFoundError:
-        raise FileNotFoundError('No numbered files in ' + path)
+    except OSError as e:
+        raise OSError('Error looking for numbered files in {}:'
+                      ''.format(path, e))
     file_ints = [int(f) for f in file_names if f]
     if not file_ints:
-        raise FileNotFoundError('No numbered files in ' + path)
+        raise OSError('No numbered files in ' + path)
     return max(file_ints)
 
 
 def get_title(counter):
+    """
+    Returns:
+        title (str): creates a title based on the counter and sample name to
+        be used for figures
+    """
     str_counter = '{0:03d}'.format(counter)
     title = "{counter}_{sample_name}".format(
         sample_name=get_sample_name(),
         counter=str_counter)
     return title
-
 
 
 def load(counter, plot=True):
@@ -346,7 +354,7 @@ def load(counter, plot=True):
     QtPlot from default location
 
     Args:
-        num (int)
+        counter (int)
         plot(default=True): do you want to return plots as well as dataset?
 
     Returns:
@@ -362,7 +370,7 @@ def load(counter, plot=True):
 
     if plot:
         # TODO: replace when counter works: plots = plot_data(data)
-        title = get_title(counter) 
+        title = get_title(counter)
         plots = []
         for value in data.arrays.keys():
             if "set" not in value:
@@ -376,12 +384,22 @@ def load(counter, plot=True):
 
 
 def save_plot(dataset, key):
+    """
+    Function for saving one of the subplots from a dataset based on a
+    given key.
+
+    Args:
+        dataset (int or qcodes dataset): dataset to plot or counter
+            from which dataset is loaded.
+        key (str): string specifying parameter array/values to plot
+        (eg key="mag" will search arrays of the dataset for any with "mag"
+         in the name).
+    """
     if isinstance(dataset, int):
         dataset = load(dataset, plot=False)
     plot = plot_data(dataset, with_title=True, key=key)
     plot.save()
     return plot
-
 
 
 def save_fig(plot_to_save, name='analysis', counter=None, pulse=False):
@@ -393,14 +411,13 @@ def save_fig(plot_to_save, name='analysis', counter=None, pulse=False):
         plot_to_save (matplotlib AxesSubplot or Figure)
         name  (str): plot will be saved with '{data_num}_{name}.png'
             so data_num and/or name must be unique, default 'analysis'
-        data_num (int): data_num for fig naming as above, if not specified
+        counter (int): counter for fig naming as above, if not specified
             will try to use one from the plot.
+        pulse (bool): if true saves fig in pulse_lib folder from config,
+            otherwise save in analysis folder from config, default False.
     """
 
-    fig = getattr(plot_to_save, 'figure', None)
-
-    if fig is None:
-        fig = plot_to_save
+    fig = getattr(plot_to_save, 'figure', plot_to_save)
 
     if counter is None:
         try:
@@ -423,21 +440,29 @@ def save_fig(plot_to_save, name='analysis', counter=None, pulse=False):
     fig.savefig(location + full_name)
 
 
-# TODO: check x and y behaviour of plotting if not specified
-# TODO: remove commented out code!
-# TODO: docstrings
-
 ##########################
 # QtPlot - data plotting #
 ##########################
 
 
-def plot_data(data, with_title=True, key=None):
-    counter = data.location_provider.counter
-    if with_title is True:
-        title = get_title(counter)
-    else:
-        title = ''
+def plot_data(data, key=None, counter=None):
+    """
+    Plotting function for plotting arrays of a dataset in seperate
+    QtPlots, cannot be used with liveplot if there is more than one
+    subplot. If key is specified returns only the plot for the array
+    with the key in the name.
+
+    Args:
+        data (qcodes dataset): dataset to be plotted
+        key (str): key which if specified is used to select the first array
+            from the dataset for plotting with a name which contains this key.
+        counter (int): counter to be provided if data is not the most recent
+            as it is currently inconsistent to get the counter from the
+            location_provider # TODO
+    """
+    if counter is None:
+        counter = data.location_provider.counter
+    title = get_title(counter)
     if key is None:
         plots = []
         for value in data.arrays.keys():
@@ -448,19 +473,30 @@ def plot_data(data, with_title=True, key=None):
                 plots.append(pl)
         return plots
     else:
-        for value in data.arrays.keys():
-            if key in value:
-                pl = qc.QtPlot(getattr(data, value), figsize=(700, 500))
-                pl.subplots[0].setTitle(title)
-                pl.subplots[0].showGrid(True, True)
+        try:
+            key_array_name = [v for v in data.arrays.keys() if key in v][0]
+        except IndexError:
+            raise KeyError('key: {} not in data array '
+                           'names: {}'.format(key,
+                                              list(data.arrays.keys())))
+        pl = qc.QtPlot(getattr(data, key_array_name), figsize=(700, 500))
+        pl.subplots[0].setTitle(title)
+        pl.subplots[0].showGrid(True, True)
         return pl
 
-def plot_data_live(dataset, meas_param, with_title=True):
-    counter = dataset.location_provider.counter
-    if with_title is True:
-        title = get_title(counter)
-    else:
-        title = ''
+
+def plot_data_live(dataset, meas_param, counter=None):
+    """
+    Plotting function for plotting arrays of a dataset in
+
+    Args:
+        counter (int): counter to be provided if data is not the most recent
+            as it is currently inconsistent to get the counter from the
+            location_provider # TODO
+    """
+    if counter is None:
+        counter = dataset.location_provider.counter
+    title = get_title(counter)
     plot = qc.QtPlot(figsize=(700 * len(meas_param.names), 500))
     for i, name in enumerate(meas_param.names):
         inst_meas_name = "{}_{}".format(meas_param._instrument.name, name)
@@ -471,7 +507,31 @@ def plot_data_live(dataset, meas_param, with_title=True):
             plot.subplots[0].setTitle(title)
         else:
             plot.subplots[i].setTitle("")
-    plot.counter = counter
+    return plot
+
+
+def plot_data_live2(dataset, keys, counter=None):
+    """
+    Plotting function for plotting arrays of a dataset in
+
+    Args:
+        counter (int): counter to be provided if data is not the most recent
+            as it is currently inconsistent to get the counter from the
+            location_provider # TODO
+    """
+    if counter is None:
+        counter = dataset.location_provider.counter
+    title = get_title(counter)
+    plot = qc.QtPlot(figsize=(700 * len(meas_param.names), 500))
+    for i, name in enumerate(meas_param.names):
+        inst_meas_name = "{}_{}".format(meas_param._instrument.name, name)
+        plot.add(getattr(dataset, inst_meas_name), subplot=i + 1)
+        plot.subplots[i].showGrid(True, True)
+        if i == 0:
+                # TODO: test if you can get away with only doing this once
+            plot.subplots[0].setTitle(title)
+        else:
+            plot.subplots[i].setTitle("")
     return plot
 
 
@@ -480,7 +540,7 @@ def plot_data_live(dataset, meas_param, with_title=True):
 ###############################
 
 
-def plot_cf_data(data1, data2, data3=None, data4=None, datanum=None,
+def plot_cf_data(data1, data2, data3=None, data4=None, counter=None,
                  subplot=None, xdata=None,
                  legend_labels=[[]] * 4, axes_labels=[[]] * 2):
     """
@@ -510,9 +570,9 @@ def plot_cf_data(data1, data2, data3=None, data4=None, datanum=None,
         fig, sub = plt.subplots()
     else:
         fig, sub = subplot.figure, subplot
-    if datanum is not None:
-        sub.figure.counter = datanum
-        sub.set_title(get_title(datanum))
+    if counter is not None:
+        fig.counter = counter
+        sub.set_title(get_title(counter))
     if len(legend_labels) < 4:
         legend_labels.extend([[]] * (4 - len(legend_labels)))
     if xdata is None:

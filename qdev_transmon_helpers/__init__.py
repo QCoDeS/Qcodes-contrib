@@ -6,7 +6,6 @@ if pulse_building_folder not in sys.path:
 from pulse_building import Waveform, Element, Sequence
 
 from .math_functions import *
-# from .plotting_functions import *
 from .file_functions import *
 from .sweep_functions import *
 from .calib_dict_functions import *
