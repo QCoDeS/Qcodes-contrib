@@ -1,23 +1,29 @@
 import qcodes as qc
 import re
 import os
-import numoy as np
+import numpy as np
 import matplotlib.pyplot as plt
 from time import localtime, strftime
 import logging
 from IPython import get_ipython
+from collections import defaultdict
+from functools import reduce  # forward compatibility for Python 3
+import operator
 
 EXPERIMENT_VARS = {'analysis_loc': False,
                    'data_loc_fmt': False,
                    'python_log_loc': False,
                    'jupyter_log_loc': False,
-                   'pulse_loc': False}
+                   'pulse_loc': False,
+                   'metadata_list': []}
 
 
 # TODO: test in_ipynb vs qc.in_notebook (and potentially replace)
-# TODO: test data.location_provider.counter
-# TODO: remove commented out code!
+# TODO: make counter edits when counter 'works'
 # TODO: docstrings
+
+def getFromDict(dataDict, mapList):
+    return reduce(operator.getitem, mapList, dataDict)
 
 
 def in_ipynb():
@@ -300,6 +306,20 @@ def get_pulse_location():
             'pulse_location not set, please call set_pulse_location')
 
 
+def add_to_metadata_list(*args):
+    for param in args:
+        inst_param_list = [param.name, param.instrument_name]
+        if inst_param_list not in EXPERIMENT_VARS['metadata_list']:
+            EXPERIMENT_VARS['metadata_list'].append(inst_param_list)
+
+
+def remove_from_metadata_list(*args):
+    for param in args:
+        inst_param_list = [param.name, param.instrument_name]
+    if inst_param_list in EXPERIMENT_VARS['metadata_list']:
+        EXPERIMENT_VARS['metadata_list'].remove(inst_param_list)
+
+
 def set_file_locations():
     """
     Wrapper function which calls set_log_location,
@@ -348,7 +368,51 @@ def get_title(counter):
     return title
 
 
-def load(counter, plot=True):
+def get_metadata(dataset, display=True, specific_list=None):
+    missing_keys = []
+    if isinstance(dataset, int):
+        dataset = load(dataset, plot=False)
+    snapshot = dataset.snapshot()
+    meta_dict = defaultdict(dict)
+    for instr, param in specific_list or EXPERIMENT_VARS['metadata_list']:
+        try:
+            unit = getFromDict(snapshot, ["station",
+                                          "instruments",
+                                          instr,
+                                          "parameters",
+                                          param,
+                                          "unit"])
+            value = getFromDict(snapshot, ["station",
+                                           "instruments",
+                                           instr,
+                                           "parameters",
+                                           param,
+                                           "value"])
+            meta_dict[instr][param] = {}
+            meta_dict[instr][param]['value'] = value
+            meta_dict[instr][param]['unit'] = unit
+        except KeyError:
+            missing_keys.append([instr, param])
+    if display:
+        print_metadata(meta_dict)
+    if len(missing_keys) > 0:
+        print('\nSome of the specified parameters were not found in the '
+              'snapshot metadata for this dataset:')
+        for missing in missing_keys:
+            print(missing[0] + ' ' + missing[1])
+    return meta_dict
+
+
+def print_metadata(meta_dict):
+    for instr in meta_dict:
+        print(instr)
+        for param in meta_dict[instr]:
+            print('\t{} : {} {}'.format(param,
+                                        meta_dict[instr][param]['value'],
+                                        meta_dict[instr][param]['unit']))
+
+
+def load(counter, plot=True, meta_data=True):
     """
     Function like shownum which loads dataset and (optionally)
     QtPlot from default location
@@ -366,7 +430,10 @@ def load(counter, plot=True):
     data = qc.load_data(
         qc.DataSet.location_provider.fmt.format(sample_name=get_sample_name(),
                                                 counter=str_counter))
-    data.data_num = counter
+    data.data_num = counter  # TODO
+
+    if meta_data:
+        get_metadata(data, display=True)
 
     if plot:
         # TODO: replace when counter works: plots = plot_data(data)

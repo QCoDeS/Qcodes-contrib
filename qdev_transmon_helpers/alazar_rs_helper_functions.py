@@ -62,13 +62,13 @@ def get_alazar_seq_mode(alazar):
 
 def set_alazar_seq_mode(alazar, mode):
     if mode == 1:
-        alazar.config(sample_rate = alazar.sample_rate(),
+        alazar.config(sample_rate=alazar.sample_rate(),
                       clock_edge=alazar.clock_edge(),
                       clock_source=alazar.clock_source(),
                       aux_io_mode='AUX_IN_TRIGGER_ENABLE',
                       aux_io_param='TRIG_SLOPE_POSITIVE')
     elif mode == 0:
-        alazar.config(sample_rate = alazar.sample_rate(),
+        alazar.config(sample_rate=alazar.sample_rate(),
                       clock_edge=alazar.clock_edge(),
                       clock_source=alazar.clock_source(),
                       aux_io_mode='AUX_IN_AUXILIARY',
@@ -193,6 +193,7 @@ def do_demod_freq_sweep(cavity, localos, acq_ctrl, manual_param,
         plots = plot_data(data)
         return data, plots
 
+
 def do_ssb_pow_sweep(qubit, acq_ctrl, qubit_freq, qubit_pow_start=-5,
                      qubit_pow_stop=-25, qubit_pow_step=2, live_plot=True):
     qubit.frequency(qubit_freq + 100e6)
@@ -204,8 +205,9 @@ def do_ssb_pow_sweep(qubit, acq_ctrl, qubit_freq, qubit_pow_start=-5,
     return sweep1d(acq_ctrl.acquisition, qubit.power, qubit_pow_start,
                    qubit_pow_stop, qubit_pow_step, live_plot=live_plot)
 
+
 def do_ssb_time_sweep(qubit, acq_ctrl, manual_param, qubit_freq, time=500,
-                     live_plot=True):
+                      live_plot=True):
     qubit.frequency(qubit_freq + 100e6)
     acq_ctrl.acquisition.set_base_setpoints(base_name='ssb_qubit_drive_freq',
                                             base_label='Qubit Drive Frequency',
@@ -214,6 +216,7 @@ def do_ssb_time_sweep(qubit, acq_ctrl, manual_param, qubit_freq, time=500,
                                             setpoints_stop=qubit_freq - 100e6)
     return sweep1d(acq_ctrl.acquisition, manual_param, 0,
                    time, 1, live_plot=live_plot)
+
 
 def do_ssb_gate_sweep(qubit, acq_ctrl, gate, qubit_freq, gate_start, gate_stop,
                       gate_step, live_plot=True):
@@ -226,36 +229,40 @@ def do_ssb_gate_sweep(qubit, acq_ctrl, gate, qubit_freq, gate_start, gate_stop,
     return sweep1d(acq_ctrl.acquisition, gate, gate_start,
                    gate_stop, gate_step, live_plot=live_plot)
 
+
 def qubit_from_ssb_measure(dataset, gradient_sign=1, min_res_width=4e6):
     raise NotImplementedError
+
 
 def qubit_from_ssb_power_sweep(dataset, gradient_sign=1, min_res_width=4e6):
     raise NotImplementedError
 
+
 def qubit_from_ssb_volt_sweep(dataset, gradient_sign=1, min_res_width=4e6, high_voltage=True):
-    voltage_array_name = [n for n in dataset.arrays.keys() if "voltage" in n][0]
+    voltage_array_name = [n for n in dataset.arrays.keys() if "voltage" in n][
+        0]
     magnitude_array_name = [n for n in dataset.arrays.keys() if "mag" in n][0]
     frequency_array_name = [n for n in dataset.arrays.keys() if "ssb" in n][0]
 
     if high_voltage:
-            voltage_index = np.argmax(getattr(dataset, voltage_array_name))
+        voltage_index = np.argmax(getattr(dataset, voltage_array_name))
     else:
-            voltage_index = np.argmin(getattr(dataset, voltage_array_name))
+        voltage_index = np.argmin(getattr(dataset, voltage_array_name))
 
     mag_array = getattr(dataset, magnitude_array_name)[voltage_index]
     freq_array = getattr(dataset, frequency_array_name)[0]
     return find_qubit(freq_array, mag_array,
-        gradient_sign=gradient_sign,
-        min_res_width=min_res_width)
+                      gradient_sign=gradient_sign,
+                      min_res_width=min_res_width)
 
 
 def find_qubit(freq_array, mag_array, gradient_sign=1, min_res_width=4e6):
     max_freq = np.amax(freq_array)
     min_freq = np.amin(freq_array)
-    sampling_rate = len(freq_array) / (max_freq - min_freq) 
+    sampling_rate = len(freq_array) / (max_freq - min_freq)
     cutoff = 2 / min_res_width
     smoothed_data = smooth_data_butter(mag_array, sampling_rate, cutoff, 5)
-    if gradient_sign  > 1:
+    if gradient_sign > 1:
         qubit_freq_index = np.argmax(smoothed_data)
     else:
         qubit_freq_index = np.argmin(smoothed_data)
@@ -269,8 +276,10 @@ def find_cavity_val(acq_controller, cavity, localos, old_position=None, demod_fr
     mag_vals = np.zeros(5)
     freq_vals = old_position + 0.25e6 * (np.arange(5) - 2)
     demod_freq = demod_freq or acq_controller.demod_freqs()[0]
-    magnitude_array_name = [n for n in acq_controller.acquisition.names if "mag" in n][0]
-    mag_array_index = acq_controller.acquisition.names.index(magnitude_array_name)
+    magnitude_array_name = [
+        n for n in acq_controller.acquisition.names if "mag" in n][0]
+    mag_array_index = acq_controller.acquisition.names.index(
+        magnitude_array_name)
     for i, f in enumerate(freq_vals):
         set_single_demod_freq(cavity, localos, [acq_controller], demod_freq,
                               cav_freq=f)
@@ -281,23 +290,23 @@ def find_cavity_val(acq_controller, cavity, localos, old_position=None, demod_fr
     new_index = np.argmax(np.absolute(gradients_array))
     new_position = freq_vals[new_index]
     set_single_demod_freq(cavity, localos, [acq_controller], demod_freq,
-                              cav_freq=new_position)
+                          cav_freq=new_position)
     cavity.frequency(new_position)
     # return new_position
 
 
 def do_tracking_ssb_gate_sweep(qubit, cavity, localos, rec_acq_ctrl, ave_acq_ctrl, gate,
-                                    initial_qubit_freq, initial_cavity_freq, demod_freq,
-                                    gate_start, gate_stop, gate_step=0.01,
-                                    live_plot=True):
+                               initial_qubit_freq, initial_cavity_freq, demod_freq,
+                               gate_start, gate_stop, gate_step=0.01,
+                               live_plot=True):
     set_single_demod_freq(cavity, localos, [ave_acq_ctrl], demod_freq,
-                              cav_freq=initial_cavity_freq)
+                          cav_freq=initial_cavity_freq)
     qubit.frequency(initial_qubit_freq + 100e6)
     rec_acq_ctrl.acquisition.set_base_setpoints(base_name='ssb_qubit_drive_freq',
-                                            base_label='Qubit Drive Frequency',
-                                            base_unit='Hz',
-                                            setpoints_start=initial_qubit_freq + 100e6,
-                                            setpoints_stop=initial_qubit_freq - 100e6)
+                                                base_label='Qubit Drive Frequency',
+                                                base_unit='Hz',
+                                                setpoints_start=initial_qubit_freq + 100e6,
+                                                setpoints_stop=initial_qubit_freq - 100e6)
     loop = qc.Loop(gate.sweep(gate_start, gate_stop, gate_step)).each(
         qc.Task(find_cavity_val, ave_acq_ctrl, cavity, localos),
         rec_acq_ctrl.acquisition,
@@ -314,7 +323,6 @@ def do_tracking_ssb_gate_sweep(qubit, cavity, localos, rec_acq_ctrl, ave_acq_ctr
         data = loop.run()
         plots = plot_data(data)
         return data, plots
-
 
 
 def measure_ssb(qubit, acq_ctrl, centre_freq, live_plot=True):
@@ -380,17 +388,17 @@ def get_t1(data, x_name='delay', y_name='magnitude',
             title = get_title(counter) + '_T1'
         fig.counter = counter
         ax.plot(x_data, exp_decay(x_data, *popt), label='fit: T1 {}{}'.format(popt[1],
-                                                                     x_units))
+                                                                              x_units))
         ax.plot(x_data, y_data, label='data')
         ax.set_xlabel('{} ({})'.format(x_name, x_units))
         ax.set_ylabel('{} ({})'.format(y_name, y_units))
         ax.set_title(title)
         ax.legend(loc='upper right', fontsize=10)
         try:
-          qubit = get_calibration_dict()['current_qubit']
-          name = 'qubit{}_t1'.format(qubit)
+            qubit = get_calibration_dict()['current_qubit']
+            name = 'qubit{}_t1'.format(qubit)
         except Exception:
-          name='t1'
+            name = 't1'
         save_fig(ax, name=name)
         return ax, popt, errors
     else:
@@ -403,7 +411,8 @@ def get_t2(data, x_name='delay', y_name='magnitude',
     y_data = getattr(getattr(data, y_name), 'ndarray')
     x_units = getattr(getattr(data, x_name), 'unit')
     y_units = getattr(getattr(data, y_name), 'unit')
-    popt, pcov = curve_fit(exp_decay_sin, x_data, y_data, p0=[0.003, 1e-7, 10e7, 0, 0.01])
+    popt, pcov = curve_fit(exp_decay_sin, x_data, y_data,
+                           p0=[0.003, 1e-7, 10e7, 0, 0.01])
     errors = np.sqrt(np.diag(pcov))
     print('fit to equation of form y = a * exp(-x / b) * sin(c * x + d) + e'
           'gives:\na {}, b {}, c {}, d {}, e{}\n'
@@ -430,17 +439,17 @@ def get_t2(data, x_name='delay', y_name='magnitude',
             title = get_title(counter) + '_T2*'
         fig.counter = counter
         ax.plot(x_data, exp_decay_sin(x_data, *popt), label='fit: T2 {}{}'.format(popt[1],
-                                                                     x_units))
+                                                                                  x_units))
         ax.plot(x_data, y_data, label='data')
         ax.set_xlabel('{} ({})'.format(x_name, x_units))
         ax.set_ylabel('{} ({})'.format(y_name, y_units))
         ax.set_title(title)
         ax.legend(loc='upper right', fontsize=10)
         try:
-          qubit = get_calibration_dict()['current_qubit']
-          name = 'qubit{}_t2'.format(qubit)
+            qubit = get_calibration_dict()['current_qubit']
+            name = 'qubit{}_t2'.format(qubit)
         except Exception:
-          name='t2'
+            name = 't2'
         save_fig(ax, name=name)
         return ax, popt, errors
     else:

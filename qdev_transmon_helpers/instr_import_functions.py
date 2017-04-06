@@ -23,7 +23,6 @@ def import_decadac(port=5, station=None):
             station.add_component(dec_slots[s])
         dec_slots[s].mode(2)
 
-
     for c in range(qubit_count):
         slot_i = int(np.floor(c / 4))
         chan = c % 4
@@ -93,7 +92,7 @@ def import_acq_controller(alazar, name=None, ctrl_type='ave', station=None):
                                  integrate_samples=True, average_records=False)
     else:
         raise Exception('acquisition controller type must be in {}, received: '
-            '{}'.format(alazar_acq_types, ctrl_type))
+                        '{}'.format(alazar_acq_types, ctrl_type))
     if station is not None:
         station.add_component(ctrl)
     logging.info('imported acquisition controller: \'{}\''.format(ctrl_name))
