@@ -90,6 +90,26 @@ def make_readout_seq(channels=[4]):
     return readout_sequence
 
 
+def make_full_ssb_wave(freq=8e6, duration=20e-6, channels=[1, 2]):
+    seq = Sequence(name='ssb_seq')
+    element = Element()
+    resolution = 1 / 1e9
+    total_points = duration / resolution
+    waveform_i = Waveform(channel=channels[0])
+    waveform_q = Waveform(channel=channels[1])
+    time_array = np.arange(total_points) * resolution
+    angle = time_array * freq * 2 * np.pi
+    cos_array = np.cos(angle)
+    sin_array = np.sin(angle)
+    waveform_i.wave = cos_array
+    waveform_q.wave = -1 * sin_array
+    element.add_waveform(waveform_i)
+    element.add_waveform(waveform_q)
+    seq.add_element(element)
+    seq.check()
+    return seq
+
+
 def make_ssb_qubit_seq(start=0, stop=200e6, step=1e6, channels=[1, 2, 4]):
     validate_pulse_dictionary()
     ssb_sequence = Sequence(name='qubit_ssb',
