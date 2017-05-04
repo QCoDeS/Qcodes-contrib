@@ -1,6 +1,7 @@
 import pickle
 import numpy as np
 from . import get_analysis_location, g_from_qubit, get_qubit_count
+
 vna_dict_keys = ['expected_qubit_positions', 'g_values',
                  'resonances', 'resonator_pushes', 'gatability', 'gate_volts']
 alazar_dict_keys = ['current_qubit', 'int_times', 'int_delays', 'cavity_freqs',
@@ -47,30 +48,87 @@ def update_calibration_dict(update_dict):
 
 
 def set_current_qubit(index, vna=True, alazar=True):
+    """
+    Sets the value of the 'current_qubit' in the calibration dictionary. This
+    can then be used to access index of this qubit when getting or setting
+    other values in the calibration dictionary.
+
+    Args:
+        index (int) in range of qubit count (starts at 0)
+        vna (default True), alazar (default True): keys to check are in the
+            calibration dictionary based on default lists
+    """
     validate_calibration_dictionary(vna, alazar)
+    qubit_count = get_qubit_count()
+    if index >= qubit_count:
+        raise ValueError('Expects qubit index less than qubit count: {}. '
+                         'Received {}'.format(qubit_count, index))
     update_calibration_dict({'current_qubit': index})
     print('current_qubit set to {}'.format(index))
 
-def get_current_qubit(vna=True, alazar=True):
+
+def get_current_qubit():
+    """
+    Gets the value of the current qubit as set in the calibration dictionary
+
+    Returns:
+        qubit index
+    """
     c_dict = get_calibration_dict()
     return c_dict['current_qubit']
 
-def update_calibration_val(key, val, qubit_index=None):
+
+def set_calibration_val(key, qubit_value, qubit_index=None):
+    """
+    Sets the relevant qubit_value found at the index of a
+    value in the calibration dictionary based on a given key
+
+    Args:
+        key (str): key name in calibration dictionary
+        qubit_value (float): value for particular qubit
+        qubit_index (int) (default None): index of qubit to which val
+            corresponds. Default is to use 'current_qubit' value.
+    """
     c_dict = get_calibration_dict()
     vals = c_dict[key].copy()
     if qubit_index is None:
-        vals[c_dict['current_qubit']] = val
+        vals[c_dict['current_qubit']] = qubit_value
     else:
-        vals[qubit_index] = val
+        vals[qubit_index] = qubit_value
     update_calibration_dict({key: vals})
 
 
-def get_calibration_val(key):
+def get_calibration_val(key, qubit_index=None):
+    """
+    Gets the relevant index of a value in the calibration
+    dictionary based on a given key
+
+    Args:
+        key (str): key name in calibration dictionary
+        qubit_index (int) (default None): index of qubit you want the value of
+            the key for. Default is to use 'current_qubit' value.
+
+    Returns:
+        qubit_value
+    """
     c_dict = get_calibration_dict()
-    return c_dict[key][c_dict['current_qubit']]
+    if qubit_index is None:
+        return c_dict[key][c_dict['current_qubit']]
+    else:
+        return c_dict[key][c_dict[qubit_index]]
 
 
 def recalculate_g(dec_chans=None):
+    """
+    Function which uses the values in the calibration dictionary for expected
+    qubit position, actual position, resonator push and g value to recalculate
+    the g value for the current qubit and compare it to the old value.
+
+    Args:
+        dec_chans (default None): if dec_chans given, gate value of current
+            qubit is compared to value at which resonator data was taken to
+            check validity of recalculated g
+    """
     c_dict = get_calibration_dict()
     expected = c_dict['expected_qubit_positions'][c_dict['current_qubit']]
     actual = c_dict['actual_qubit_positions'][c_dict['current_qubit']]
@@ -92,6 +150,16 @@ def recalculate_g(dec_chans=None):
 
 
 def validate_calibration_dictionary(vna=True, alazar=True):
+    """
+    Function which checks that the calibration dictionary contains the
+    keys specified in the default lists for vna and alazar measurements
+    and that values correspond to lists of the same length as th number of
+    qubits. Populates them with 0s if not
+
+    Args:
+        vna (default True): check for vna measurement keys?
+        alazar (default True): check for alazar measurement keys?
+    """
     c_dict = get_calibration_dict()
     qubit_num = get_qubit_count()
     qubit_length_list = np.zeros(get_qubit_count())

@@ -6,6 +6,12 @@ from . import get_pulse_location, get_latest_counter
 
 from . import Sequence, Waveform, Element
 
+# TODO: gaussian
+# TODO: rount -> int/ciel
+# TODO: test segments
+# TODO: plot sequence -> plot variable channel count
+# TODO: make_save_send_load_awg_file -> not doing same thing twice!
+
 
 default_pulse_dict = {'cycle_duration': 20e-6, 'sample_rate': 1e9,
                       'pulse_end': 10e-6, 'pulse_readout_delay': 30e-9,
@@ -14,6 +20,10 @@ default_pulse_dict = {'cycle_duration': 20e-6, 'sample_rate': 1e9,
 
 
 def validate_pulse_dictionary():
+    """
+    Function which checks that the pulse dictionary contains the
+    keys specified in the default list.
+    """
     p_dict = get_pulse_dict()
     missing_keys = []
     for k in default_pulse_dict:
@@ -29,6 +39,13 @@ def validate_pulse_dictionary():
 
 
 def get_pulse_dict():
+    """
+    Gets the pulse dictionary stored as 'pulse_dict.p' in
+    pulse location file or makes an empty one if none found.
+
+    Returns:
+        pulse dictionary
+    """
     path = get_pulse_location()
     file_name = 'pulse_dict.p'
     try:
@@ -37,33 +54,57 @@ def get_pulse_dict():
         print('pulse_dict not found, making one')
         pickle.dump({}, open(path + file_name, 'wb'))
         pulse_dict = {}
+    pprint.pprint(pulse_dict, width=1)
     return pulse_dict
 
 
 def update_pulse_dict(update_dict):
+    """
+    Updates the pulse dictionary 'pulse_dict.p' in
+    pulse location file with given dict.
+
+    Args:
+        update_dict (dictionary)
+    """
     path = get_pulse_location()
     file_name = 'pulse_dict.p'
-    try:
-        dict_to_update = pickle.load(open(path + file_name, "rb"))
-    except FileNotFoundError:
-        dict_to_update = {}
-
+    dict_to_update = get_pulse_dict()
     dict_to_update.update(update_dict)
     pickle.dump(dict_to_update, open(path + file_name, 'wb'))
 
 
 def update_pulse_val(key, val):
+    """
+    Sets a value in the pulse dictionary 'pulse_dict.p' in
+    pulse location file.
+
+    Args:
+        key, val
+    """
     p_dict = get_pulse_dict()
     p_dict[key] = val
     update_pulse_dict(p_dict)
 
 
 def get_pulse_val(key):
+    """
+    Gets a value from the pulse dictionary 'pulse_dict.p' in
+    pulse location file.
+
+    Args:
+        key
+
+    Returns:
+        val
+    """
     p_dict = get_pulse_dict()
     return p_dict[key]
 
 
 def make_readout_seq(channels=[4]):
+    """
+    Square pulse duting readout time with one marker at start
+    """
     validate_pulse_dictionary()
     readout_sequence = Sequence(name='plain_readout', variable='')
     p_dict = get_pulse_dict()
@@ -91,6 +132,9 @@ def make_readout_seq(channels=[4]):
 
 
 def make_full_ssb_wave(freq=8e6, duration=20e-6, channels=[1, 2]):
+    """
+    Cosine and sine waves of given frequency for cycle duration, no markers
+    """
     seq = Sequence(name='ssb_seq')
     element = Element()
     resolution = 1 / 1e9
@@ -111,6 +155,11 @@ def make_full_ssb_wave(freq=8e6, duration=20e-6, channels=[1, 2]):
 
 
 def make_ssb_qubit_seq(start=0, stop=200e6, step=1e6, channels=[1, 2, 4]):
+    """
+    Cosine and sine waves for qubit time with range of frequencies, square
+    readout wave for readout time. Markers on readout channel (1 for readout
+    start, 2 for seq start)
+    """
     validate_pulse_dictionary()
     ssb_sequence = Sequence(name='qubit_ssb',
                             variable='sideband_modulation_freq',
@@ -162,51 +211,13 @@ def make_ssb_qubit_seq(start=0, stop=200e6, step=1e6, channels=[1, 2, 4]):
     return ssb_sequence
 
 
-def make_ssb_readout_sequence(start=0, stop=200e6, step=1e6, channels=[3, 4]):
-    validate_pulse_dictionary()
-    ssb_sequence = Sequence(name='readout_ssb',
-                            variable='sideband_modulation_freq',
-                            variable_unit='Hz',
-                            step=step,
-                            start=start,
-                            stop=stop)
-
-    p_dict = get_pulse_dict()
-    resolution = 1 / p_dict['sample_rate']
-    readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
-    readout_marker_start = readout_start - p_dict['marker_readout_delay']
-    readout_start_points = round(readout_start / resolution)
-    readout_points = round(p_dict['readout_time'] / resolution)
-    readout_marker_start_points = round(readout_marker_start / resolution)
-    pulse_end_points = round(p_dict['pulse_end'] / resolution)
-    marker_points = round(p_dict['marker_time'] / resolution)
-    total_points = round(p_dict['cycle_duration'] / resolution)
-
-    readout_time_array = np.arange(readout_points) * resolution
-    freq_array = ssb_sequence.variable_array
-
-    for i, freq in enumerate(freq_array):
-        element = Element()
-        element.add_waveform(readout_waveform)
-        qubit_i = Waveform(length=points, channel=1)
-        qubit_q = Waveform(length=points, channel=2)
-        if i == 0:
-            qubit_i.marker_1[0:100] = 1
-            qubit_waveform.marker_2[0:100] = 1
-        qubit_start = pulse_end_points - qubit_points
-        qubit_end = pulse_end_points
-        angle = qubit_time_array * freq * 2 * np.pi
-        cos_array = np.cos(angle)
-        sin_array = np.sin(angle)
-        qubit_i.wave[qubit_start:qubit_end] = cos_array
-        qubit_q.wave[qubit_start:qubit_end] = sin_array
-        element.add_waveform(qubit_i)
-        element.add_waveform(qubit_q)
-        ssb_sequence.add_element(element)
-
-    ssb_sequence.check()
-
-def make_t1_seq(pi_duration, pi_amp, start=0, stop=5e-6, step=50e-9, channels=[1, 4]):
+def make_t1_seq(pi_duration, pi_amp, start=0, stop=5e-6, step=50e-9,
+                channels=[1, 4]):
+    """
+    Square qubit drive for pi duration at pi amplitude on qubit with varying
+    wait time before readout (square pulse for readout time). Markers on
+    readout channel (1 for readout start, 2 for seq start)
+    """
     validate_pulse_dictionary()
     t1_sequence = Sequence(name='t1',
                            variable='drive_readout_delay',
@@ -254,11 +265,16 @@ def make_t1_seq(pi_duration, pi_amp, start=0, stop=5e-6, step=50e-9, channels=[1
     return t1_sequence
 
 
-def make_rabi_sequence(pi_amp, start=0, stop=200e-9, step=2e-9, channels=[1, 4]):
+def make_rabi_sequence(pi_amp, start=0, stop=200e-9, step=2e-9,
+                       channels=[1, 4]):
+    """
+    Square qubit drive of pi amplitude of varying duration, square readout
+    drive. Markers on readout channel (1 for readout start, 2 for seq start)
+    """
     validate_pulse_dictionary()
     rabi_sequence = Sequence(name='rabi',
                              variable='drive_duration',
-                             variable_label= 'Drive Duration',
+                             variable_label='Drive Duration',
                              variable_unit='s',
                              step=step,
                              start=start,
@@ -303,15 +319,21 @@ def make_rabi_sequence(pi_amp, start=0, stop=200e-9, step=2e-9, channels=[1, 4])
     return rabi_sequence
 
 
-def make_ramsey_sequence(pi_duration, pi_amp, start=0, stop=200e-9, step=2e-9, channels=[1, 4]):
+def make_ramsey_sequence(pi_duration, pi_amp, start=0, stop=200e-9, step=2e-9,
+                         channels=[1, 4]):
+    """
+    Two square pulses on qubit of pi duration of half pi amplitude separated
+    by varying duration. Square readout with markers (1 for readout start,
+    2 for seq start)
+    """
     validate_pulse_dictionary()
     ramsey_sequence = Sequence(name='ramsey',
-                             variable='drive_drive_delay',
-                             variable_label='Delay',
-                             variable_unit='s',
-                             step=step,
-                             start=start,
-                             stop=stop)
+                               variable='drive_drive_delay',
+                               variable_label='Delay',
+                               variable_unit='s',
+                               step=step,
+                               start=start,
+                               stop=stop)
 
     p_dict = get_pulse_dict()
     resolution = 1 / p_dict['sample_rate']
@@ -354,15 +376,22 @@ def make_ramsey_sequence(pi_duration, pi_amp, start=0, stop=200e-9, step=2e-9, c
     return ramsey_sequence
 
 
-def make_floqet_dur_sequence(floquet_freq, floquet_amp, start, stop, step, channels=[1,4]):
+def make_floquet_dur_sequence(floquet_freq, floquet_amp, start, stop, step,
+                              channels=[1, 4]):
+    """
+    Cosine modulated qubit drive at floquet frequency for varying durations at
+    floquet amplitude. Square readout pulse with markers (1 for readout start,
+    2 for seq start)
+    """
+    validate_pulse_dictionary()
     duration_floquet_sequence = Sequence(name='floquet',
-                               variable='floquet_dur',
-                               variable_label='time',
-                               variable_unit='S',
-                               step=step,
-                               start=start,
-                               stop=stop)
-
+                                         variable='floquet_dur',
+                                         variable_label='time',
+                                         variable_unit='S',
+                                         step=step,
+                                         start=start,
+                                         stop=stop)
+    p_dict = get_pulse_dict()
     resolution = 1 / p_dict['sample_rate']
     readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
     readout_marker_start = readout_start - p_dict['marker_readout_delay']
@@ -394,54 +423,7 @@ def make_floqet_dur_sequence(floquet_freq, floquet_amp, start, stop, step, chann
         angle = floquet_time_array * floquet_freq * 2 * np.pi
         cos_array = floquet_amp * floquet_freq * np.cos(angle)
         floquet_start = pulse_end_points - floquet_points
-        qubit_waveform.wave[floquet_start :pulse_end_points] = cos_array
-        element.add_waveform(qubit_waveform)
-        element.add_waveform(readout_waveform)
-        duration_floquet_sequence.add_element(element)
-    duration_floquet_sequence.check()
-    return duration_floquet_sequence
-
-def make_floquet_dur_sequence(floquet_freq, floquet_amp, start, stop, step, channels=[1,4]):
-    duration_floquet_sequence = Sequence(name='floquet',
-                               variable='floquet_dur',
-                               variable_label='drive_time',
-                               variable_unit='S',
-                               step=step,
-                               start=start,
-                               stop=stop)
-
-    resolution = 1 / p_dict['sample_rate']
-    readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
-    readout_marker_start = readout_start - p_dict['marker_readout_delay']
-
-    readout_start_points = round(readout_start / resolution)
-    readout_marker_start_points = round(readout_marker_start / resolution)
-    readout_points = int(np.ceil(p_dict['readout_time'] / resolution))
-    pulse_end_points = int(np.ceil(p_dict['pulse_end'] / resolution))
-    marker_points = int(np.ceil(p_dict['marker_time'] / resolution))
-    total_points = int(np.ceil(p_dict['cycle_duration'] / resolution))
-
-    readout_template = Waveform(length=total_points, channel=channels[1])
-
-    readout_template.wave[
-        readout_start_points:readout_start_points + readout_points] = 1
-    readout_template.marker_1[
-        readout_marker_start_points:readout_marker_start_points + marker_points] = 1
-
-    floquet_durations = duration_floquet_sequence.variable_array
-    for i, floquet_duration in enumerate(floquet_durations):
-        element = Element()
-        qubit_waveform = Waveform(length=total_points, channel=channels[0])
-        readout_waveform = readout_template.copy()
-        if i == 0:
-            readout_waveform.marker_2[10:10 + marker_points] = 1
-
-        floquet_points = int(np.ceil(floquet_duration / resolution))
-        floquet_time_array = np.arange(floquet_points) * resolution
-        angle = floquet_time_array * floquet_freq * 2 * np.pi
-        cos_array = floquet_amp * np.cos(angle)
-        floquet_start = pulse_end_points - floquet_points
-        qubit_waveform.wave[floquet_start :pulse_end_points] = cos_array
+        qubit_waveform.wave[floquet_start:pulse_end_points] = cos_array
         element.add_waveform(qubit_waveform)
         element.add_waveform(readout_waveform)
         duration_floquet_sequence.add_element(element)
@@ -449,15 +431,22 @@ def make_floquet_dur_sequence(floquet_freq, floquet_amp, start, stop, step, chan
     return duration_floquet_sequence
 
 
-def make_floquet_freq_sequence(floquet_dur, floquet_amp, start, stop, step, channels=[1,4]):
+def make_floquet_freq_sequence(floquet_dur, floquet_amp, start, stop, step,
+                               channels=[1, 4]):
+    """
+    Cosine modulated qubit drive duation floquet_dur for varying frequencies
+    at floquet amplitude. Square readout pulse with markers (1 for readout
+    start, 2 for seq start)
+    """
+    validate_pulse_dictionary()
     frequency_floquet_sequence = Sequence(name='floquet',
-                               variable='floquet_freq',
-                               variable_label='floquet_freq',
-                               variable_unit='Hz',
-                               step=step,
-                               start=start,
-                               stop=stop)
-
+                                          variable='floquet_freq',
+                                          variable_label='floquet_freq',
+                                          variable_unit='Hz',
+                                          step=step,
+                                          start=start,
+                                          stop=stop)
+    p_dict = get_pulse_dict()
     resolution = 1 / p_dict['sample_rate']
     readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
     readout_marker_start = readout_start - p_dict['marker_readout_delay']
@@ -487,23 +476,32 @@ def make_floquet_freq_sequence(floquet_dur, floquet_amp, start, stop, step, chan
 
         floquet_time_array = np.arange(floquet_points) * resolution
         angle = floquet_time_array * floquet_freq * 2 * np.pi
-        cos_array = floquet_amp  * np.cos(angle)
+        cos_array = floquet_amp * np.cos(angle)
         floquet_start = pulse_end_points - floquet_points
-        qubit_waveform.wave[floquet_start :pulse_end_points] = cos_array
+        qubit_waveform.wave[floquet_start:pulse_end_points] = cos_array
         element.add_waveform(qubit_waveform)
         element.add_waveform(readout_waveform)
         frequency_floquet_sequence.add_element(element)
     frequency_floquet_sequence.check()
     return frequency_floquet_sequence
 
-def make_floquet_amp_sequence(floquet_dur, floquet_freq, start, stop, step, channels=[1,4]):
+
+def make_floquet_amp_sequence(floquet_dur, floquet_freq, start, stop, step,
+                              channels=[1, 4]):
+    """
+    Cosine modulated qubit drive at floquet frequency for floquet_dur at
+    varying amplitude. Square readout pulse with markers (1 for readout start,
+    2 for seq start)
+    """
+    validate_pulse_dictionary()
     amplitude_floquet_sequence = Sequence(name='floquet',
-                               variable='floquet_amp',
-                               variable_label='floquet_amp',
-                               variable_unit='V',
-                               step=step,
-                               start=start,
-                               stop=stop)
+                                          variable='floquet_amp',
+                                          variable_label='floquet_amp',
+                                          variable_unit='V',
+                                          step=step,
+                                          start=start,
+                                          stop=stop)
+    p_dict = get_pulse_dict()
 
     resolution = 1 / p_dict['sample_rate']
     readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
@@ -536,17 +534,28 @@ def make_floquet_amp_sequence(floquet_dur, floquet_freq, start, stop, step, chan
         angle = floquet_time_array * floquet_freq * 2 * np.pi
         cos_array = floquet_amp * np.cos(angle)
         floquet_start = pulse_end_points - floquet_points
-        qubit_waveform.wave[floquet_start :pulse_end_points] = cos_array
+        qubit_waveform.wave[floquet_start:pulse_end_points] = cos_array
         element.add_waveform(qubit_waveform)
         element.add_waveform(readout_waveform)
         amplitude_floquet_sequence.add_element(element)
     amplitude_floquet_sequence.check()
     return amplitude_floquet_sequence
 
+
 def plot_sequence(sequence, elemnum=0, channels=[1, 2]):
+    """
+    Function which plots 2 channels and markers
+
+    Args:
+        sequence to plot
+        elemnum to plot
+        channels (list of two) to plot
+
+    Returns:
+        matplotlib fic
+    """
     fig = plt.figure()
     plt_count = len(channels) * 2
-    ax_list = []
     for i, chan in enumerate(channels):
         index_a = (plt_count * 100) + 10 + (2 * i) + 1
         index_b = index_a + 1
@@ -557,14 +566,23 @@ def plot_sequence(sequence, elemnum=0, channels=[1, 2]):
         ax_m.set_title('Channel {} markers'.format(chan))
         ax_m.set_ylim([-0.1, 1.1])
         ax_w.plot(sequence[elemnum][chan].wave, lw=1, color='#009FFF')
-        ax_m.plot(sequence[elemnum][chan].marker_1, lw=1, color='#008B45', alpha=0.6, label='m1')
-        ax_m.plot(sequence[elemnum][chan].marker_2, lw=1, color='#FE6447', alpha=0.6, label='m2')
+        ax_m.plot(sequence[elemnum][chan].marker_1, lw=1,
+                  color='#008B45', alpha=0.6, label='m1')
+        ax_m.plot(sequence[elemnum][chan].marker_2, lw=1,
+                  color='#FE6447', alpha=0.6, label='m2')
         ax_m.legend(loc='upper right', fontsize=10)
     plt.tight_layout()
     return fig
 
 
 def make_save_send_load_awg_file(awg, sequence):
+    """
+    WYSIYWYG
+
+    Args:
+        awg instrument for upload
+        sequence to be uploaded
+    """
     pulse_location = get_pulse_location()
     try:
         num = get_latest_counter(pulse_location) + 1
@@ -577,6 +595,12 @@ def make_save_send_load_awg_file(awg, sequence):
 
 
 def check_sample_rate(awg):
+    """
+    Checks sample rate in pulse dict against that on awg
+
+    Args:
+        awg instrument for checking
+    """
     sr = get_pulse_val('sample_rate')
     if sr != awg.clock_freq():
         awg.clock_freq(sr)
