@@ -2,6 +2,19 @@ from . import check_sample_rate, make_save_send_load_awg_file
 
 
 def set_up_sequence(awg, alazar, acq_controllers, sequence, seq_mode=1):
+    """
+    Function which checks sample rate compatability between sequence and awg
+    setting, uploads sequence to awg, sets the alazar instrument to the
+    relevant sequence mode and sets the acquisition controller aquisiion
+    parameter to have setpoints based on the sequence variable.
+
+    Args:
+        awg instrument (AWG5014)
+        alazar instrument
+        acq_controllers list
+        sequence for upload
+        seq_mode (default 1)
+    """
     check_sample_rate(awg)
     make_save_send_load_awg_file(awg, sequence)
     alazar.seq_mode(seq_mode)

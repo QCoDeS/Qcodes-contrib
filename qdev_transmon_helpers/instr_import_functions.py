@@ -10,10 +10,11 @@ alazar_acq_types = ['samp', 'ave', 'rec']
 # TODO: alazar seq mode param default val
 
 
-def import_decadac(port=5, station=None):
+def import_decadac(port=5, station=None, chan_count=None, all_chans_0=False):
     from qcodes.instrument_drivers.Harvard.Decadac import Decadac
-    qubit_count = get_qubit_count()
-    slot_count = int(np.ceil(qubit_count / 4))
+    if chan_count is None:
+        chan_count = get_qubit_count()
+    slot_count = int(np.ceil(chan_count / 4))
     dec_slots = []
     dec_chans = []
 
@@ -23,13 +24,15 @@ def import_decadac(port=5, station=None):
             station.add_component(dec_slots[s])
         dec_slots[s].mode(2)
 
-    for c in range(qubit_count):
+    for c in range(chan_count):
         slot_i = int(np.floor(c / 4))
         chan = c % 4
         dec_chans.append(getattr(dec_slots[slot_i],
                                  'ch{}_voltage'.format(chan)))
         dec_chans[c].set_step(0.1)
         dec_chans[c].set_delay(0.01)
+        if all_chans_0:
+            dec_chans[c](0)
 
     logging.info('imported {} decadac slots \'dec_slots\': sorted into {} '
                  'decadac channels \'dec_chans\''.format(len(dec_slots),
@@ -37,6 +40,8 @@ def import_decadac(port=5, station=None):
     print('imported {} decadac slots \'dec_slots\': sorted into {} '
           'decadac channels \'dec_chans\''.format(len(dec_slots),
                                                   len(dec_chans)))
+    if all_chans_0:
+        print('All channels set to 0V')
     print('-------------------------')
     return dec_slots, dec_chans
 
@@ -63,7 +68,8 @@ def import_manual_param(name='dummy_time', station=None):
     return dummy_time
 
 
-def import_alazar(name='alazar', station=None, clock_source='EXTERNAL_CLOCK_10MHz_REF'):
+def import_alazar(name='alazar', station=None,
+                  clock_source='EXTERNAL_CLOCK_10MHz_REF'):
     from qcodes.instrument_drivers.AlazarTech.ATS9360 import AlazarTech_ATS9360
     alazar = AlazarTech_ATS9360(name=name)
     config_alazar(alazar, seq_mode=False, clock_source=clock_source)
@@ -127,7 +133,6 @@ def import_awg(visa_address, name='awg', timeout=40, station=None):
     awg.ch2_filter(100000000.0)
     awg.ch3_filter(100000000.0)
     awg.ch4_filter(100000000.0)
-    # TODO
     if station is not None:
         station.add_component(awg)
     logging.info('imported tektronix awg5014c: \'{}\''.format(name))

@@ -2,7 +2,6 @@ import numpy as np
 from math import sqrt, factorial
 from scipy import signal
 
-# TODO: docstrings
 
 def qubit_from_push(g, push, bare_res):
     """
@@ -21,34 +20,52 @@ def qubit_from_push(g, push, bare_res):
     return bare_res - delta
 
 
-def g_from_qubit(qubit, bare_res, push):
+def g_from_qubit(qubit, push, bare_res):
     """
     Get estimated coupling strength given qubit frequency, push
     on resonator and bare resonator position.
 
     Args:
-        g: coupling in Hz
+        qubit: qubit frequency
         push: push in Hz
         bare_res: resonator position in Hz
 
     Returns:
-        estimated qubit frequency
+        coupling of qubit to resonator
     """
     delta = bare_res - qubit
     return sqrt(delta * push)
 
 
 def resonator_from_qubit(qubit, g, bare_res):
+    """
+    Get estimated resonator position based on qubit position,
+    qubit resonator coupling and bare resonator position
+
+    Args:
+        qubit: qubit frequency
+        g: coupling in Hz
+        bare_res: resonator position in Hz
+
+    Returns:
+        estimated resonator frequency
+    """
     delta = bare_res - qubit
     push = g**2 / delta
-    return bare_res + push 
+    return bare_res + push
 
 
 def exp_decay_sin(x, a, b, c, d, e):
+    """
+    Returns exponential decay modulated sine
+    """
     return a * np.exp(-x / b) * np.sin(c * x + d) + e
 
 
 def exp_decay(x, a, b, c):
+    """
+    Returns exponential decay
+    """
     return a * np.exp(-x / b) + c
 
 
@@ -88,6 +105,7 @@ def smooth_data_SG(y, window_size, order, deriv=0, rate=1):
 
     return np.convolve(m[::-1], y, mode='valid')
 
+
 def butter_lowpass(cutoff, fs, order):
     """
     Function which generates scipy butterworth filter to data
@@ -104,6 +122,7 @@ def butter_lowpass(cutoff, fs, order):
     b, a = signal.butter(order, normal_cutoff, btype='low', analog=False)
     return b, a
 
+
 def smooth_data_butter(data, fs, cutoff, order):
     """
     Function which applies butterwoth filter to data
@@ -118,4 +137,3 @@ def smooth_data_butter(data, fs, cutoff, order):
     b, a = butter_lowpass(cutoff, fs, order)
     y = signal.filtfilt(b, a, data)
     return y
-

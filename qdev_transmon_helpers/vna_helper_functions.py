@@ -1,12 +1,15 @@
 import qcodes as qc
 import numpy as np
 import matplotlib.pyplot as plt
-from . import plot_cf_data, get_latest_counter, get_sample_name, get_title, sweep1d, smooth_data_butter, smooth_data_SG
+from . import plot_cf_data, get_latest_counter, get_sample_name, get_title, \
+    smooth_data_butter, smooth_data_SG, sweep1d
 from scipy import signal
 
 # TODO: spec mode settings
 # TODO: vna naming/plotting harcoding should be removed, replace with
 # plotting_functions
+# TODO: edits once VNA driver completed
+# TODO: remove do_power sweep etc when we know power sweep setup etc work.
 
 
 def resonator_sweep_setup(v1, power=-30, pm_range=200e6, avg=5,
@@ -52,53 +55,78 @@ def power_sweep_setup(v1, avg=5, bw=1000, npts=201):
     v1.npts(npts)
 
 
-def do_power_sweep(v1, centre, pm_range=10e6,
-                   pow_start=-10, pow_stop=-50, pow_step=1):
+def sweep2d_vna(v1, startf, stopf, stepf,
+                sweep_param2, start2, stop2, step2,
+                delay=0.01, key="mag", save=True):
     """
-    Function which sweeps power in a loop and takes vna trace data
+    Function which fakes doing a 2d sweep by setting up the vna to
+    do a 'hard' frequency sweep over the given range and then executing
+    a 'soft' sweep over the other parameter
 
     Args:
-        v1 (instrument): instrument to sweep power and frequency on
-        centre (float): centre of frequency scan
-        pm_range (float): plus minus range
-        ie scan will be from centre-pm_range to centre+pm_range
-        default 10e6
-        pow_start (int): dBm starting power, default -10
-        pow_stop (int): dBm finishing power default -60
-        pow_step (int): dBm powe step, default 1
+        v1 (instrument): VNA instrument
+        startf (float): starting frequency
+        stopf (float): final frequency
+        stepf (float): frequency increment
+        sweep_param2 (qcodes parameter): second parameter to sweep
+        start2 (float): starting value for second parameter
+        stop2 (float): final value for second parameter
+        step2 (float): step value for second parameter
+        delay (float): min time to wait between step of second parameter
+        key (str) (default "mag"): string key used to identify what to
+            live plot
 
     Returns:
-        dataset (qcodes DataSet)
-        plot (QtPlot)
+        dataset, plot
     """
-    data_num = get_latest_counter() + 1  # TODO
-    title = get_title(data_num)  # TODO
-    v1.start(centre - pm_range)
-    v1.stop(centre + pm_range)
-    loop = qc.Loop(v1.power.sweep(
-        pow_start, pow_stop, pow_step)).each(v1.trace)
-    dataset = loop.get_data_set()
-    # data_num = dataset.location_provider.counter
-    # title = get_title(data_num)
-    plot = qc.QtPlot(figsize=(700, 500))
-    plot.add(dataset.vna_linear_magnitude)
-    plot.subplots[0].showGrid(True, True)
-    plot.subplots[0].setTitle(title)
-    try:
-        _ = loop.with_bg_task(plot.update, plot.save).run()  # TODO
-    except KeyboardInterrupt:
-        print("Measurement Interrupted")
-    dataset.data_num = data_num
-    plot.counter = data_num
+    v1.start(startf)
+    v1.stop(stopf)
+    npts = (stopf - startf) / stepf + 1
+    v1.npts(npts)
+    dataset, plot = sweep1d(v1.trace, sweep_param2, start2, stop2, step2,
+                            delay=delay, key="mag", save=save)
     return dataset, plot
 
 
-# def do_power_sweep(v1, centre, pm_range=10e6, pow_start=-10,
-#                    pow_stop=-50, pow_step=1, live_plot=True):
+# def do_power_sweep(v1, centre, pm_range=10e6,
+#                    pow_start=-10, pow_stop=-50, pow_step=1):
+#     """
+#     Function which sweeps power in a loop and takes vna trace data
+
+#     Args:
+#         v1 (instrument): instrument to sweep power and frequency on
+#         centre (float): centre of frequency scan
+#         pm_range (float): plus minus range
+#         ie scan will be from centre-pm_range to centre+pm_range
+#         default 10e6
+#         pow_start (int): dBm starting power, default -10
+#         pow_stop (int): dBm finishing power default -60
+#         pow_step (int): dBm powe step, default 1
+
+#     Returns:
+#         dataset (qcodes DataSet)
+#         plot (QtPlot)
+#     """
+#     data_num = get_latest_counter() + 1  # TODO
+#     title = get_title(data_num)  # TODO
 #     v1.start(centre - pm_range)
 #     v1.stop(centre + pm_range)
-#     return sweep1d(v1.trace, v1.power, pow_start, pow_stop, pow_step,
-#                    live_plot=live_plot)
+#     loop = qc.Loop(v1.power.sweep(
+#         pow_start, pow_stop, pow_step)).each(v1.trace)
+#     dataset = loop.get_data_set()
+#     # data_num = dataset.location_provider.counter
+#     # title = get_title(data_num)
+#     plot = qc.QtPlot(figsize=(700, 500))
+#     plot.add(dataset.vna_linear_magnitude)
+#     plot.subplots[0].showGrid(True, True)
+#     plot.subplots[0].setTitle(title)
+#     try:
+#         _ = loop.with_bg_task(plot.update, plot.save).run()  # TODO
+#     except KeyboardInterrupt:
+#         print("Measurement Interrupted")
+#     dataset.data_num = data_num
+#     plot.counter = data_num
+#     return dataset, plot
 
 
 def gate_sweep_setup(v1, avg=5, bw=1000, npts=201, power=-40):
@@ -129,48 +157,47 @@ def gates_to_zero(dec_chans):
         chan(0)
 
 
-def do_gate_sweep(v1, centre, chan, reset_after=False, pm_range=10e6,
-                  gate_start=0, gate_stop=-0.1, gate_step=0.01):
-    """
-    Function which sweeps gate voltage in a loop and takes vna trace data
+# def do_gate_sweep(v1, centre, chan, reset_after=False, pm_range=10e6,
+#                   gate_start=0, gate_stop=-0.1, gate_step=0.01):
+#     """
+#     Function which sweeps gate voltage in a loop and takes vna trace data
 
-    Args:
-        v1 (instrument): VNA instrument to 'do frequency sweep' on
-                         and get data from
-        centre (float): centre of frequency scan
-        chan (int): decadac channel controlling gate to sweep
-        reset_after (bool): reset gate to gate_start after?
-        pm_range (float): plus minus range
-        ie scan will be from centre-pm_range to centre+pm_range
-        default 10e6
-        gate_start (float): V starting gate voltage, default 0
-        gate_stop (float): V finishing gate voltaget -0.1 volts
-        gate_step (float): V powe step, default 10 milivolt
+#     Args:
+#         v1 (instrument): VNA instrument to 'do frequency sweep' on
+#                          and get data from
+#         centre (float): centre of frequency scan
+#         chan (int): decadac channel controlling gate to sweep
+#         reset_after (bool): reset gate to gate_start after?
+#         pm_range (float): plus minus range
+#         ie scan will be from centre-pm_range to centre+pm_range
+#         default 10e6
+#         gate_start (float): V starting gate voltage, default 0
+#         gate_stop (float): V finishing gate voltaget -0.1 volts
+#         gate_step (float): V powe step, default 10 milivolt
 
-    Returns:
-        data (qcodes DataSet)
-        plot (QtPlot)
-    """
-    data_num = get_latest_counter() + 1
-    title = get_title(data_num)
-    v1.start(centre - pm_range)
-    v1.stop(centre + pm_range)
-    loop = qc.Loop(chan.sweep(gate_start, gate_stop, gate_step)).each(v1.trace)
-    data = loop.get_data_set()
-    plot = qc.QtPlot(figsize=(700, 500))
-    plot.add(data.vna_linear_magnitude)
-    plot.subplots[0].showGrid(True, True)
-    plot.subplots[0].setTitle(title)
-    try:
-        _ = loop.with_bg_task(plot.update, plot.save).run()  # TODO
-    except KeyboardInterrupt:
-        print("Measurement Interrupted")
-    if reset_after:
-        chan(gate_start)
-    data.data_num = data_num
-    plot.counter = data_num
-    return data, plot
-
+#     Returns:
+#         data (qcodes DataSet)
+#         plot (QtPlot)
+#     """
+#     data_num = get_latest_counter() + 1
+#     title = get_title(data_num)
+#     v1.start(centre - pm_range)
+#     v1.stop(centre + pm_range)
+#     loop = qc.Loop(chan.sweep(gate_start, gate_stop, gate_step)).each(v1.trace)
+#     data = loop.get_data_set()
+#     plot = qc.QtPlot(figsize=(700, 500))
+#     plot.add(data.vna_linear_magnitude)
+#     plot.subplots[0].showGrid(True, True)
+#     plot.subplots[0].setTitle(title)
+#     try:
+#         _ = loop.with_bg_task(plot.update, plot.save).run()  # TODO
+#     except KeyboardInterrupt:
+#         print("Measurement Interrupted")
+#     if reset_after:
+#         chan(gate_start)
+#     data.data_num = data_num
+#     plot.counter = data_num
+#     return data, plot
 
 
 def find_peaks(dataset, fs, cutoff=0.2e-6, order=5,
@@ -195,7 +222,8 @@ def find_peaks(dataset, fs, cutoff=0.2e-6, order=5,
         frequencies (array): frequencies of resonances found
         subplot (matplotlib AxesSubplot): plot of results
     """
-    setpoints = next(getattr(dataset, key) for key in dataset.arrays.keys() if "set" in key)
+    setpoints = next(getattr(dataset, key)
+                     for key in dataset.arrays.keys() if "set" in key)
 
     # smooth data
     unsmoothed_data = dataset.vna_linear_magnitude
@@ -244,11 +272,12 @@ def plot_resonances(dataset, indices, subplot=None):
         subplot = plt.subplot(111)
         try:
             # TODO: replace with data.location_provider.counter?
-            fig.counter = dataset.data_num
+            fig.data_num = dataset.data_num
         except AttributeError as e:
             print('dataset has no data_num set: {}'.format(e))
 
-    setpoints = next(getattr(dataset, key) for key in dataset.arrays.keys() if "set" in key)
+    setpoints = next(getattr(dataset, key)
+                     for key in dataset.arrays.keys() if "set" in key)
     magnitude = dataset.vna_linear_magnitude
     subplot.plot(setpoints, magnitude, 'b')
     subplot.plot(setpoints[indices], magnitude[indices], 'gs')
@@ -328,14 +357,12 @@ def get_resonator_push(dataset):
 
     try:
         # TODO: replace with data.location_provider.counter?
-        fig.counter = dataset.data_num
-        fig.suptitle('dataset {}'.format(fig.counter), fontsize=12)
+        fig.data_num = dataset.data_num
+        fig.suptitle('dataset {}'.format(fig.data_num), fontsize=12)
         fig.text(0, 0, 'bare res: {}, pushed res: {}, push: {}'.format(
             high_res, low_res, dif))
     except AttributeError as e:
-        fig.counter = dataset.location_provider.counter
+        fig.data_num = dataset.location_provider.counter
         print('dataset has no data_num set: {}'.format(e))
 
     return [low_res, high_res, dif], fig
-
-
