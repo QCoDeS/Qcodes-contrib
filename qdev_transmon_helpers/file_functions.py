@@ -308,14 +308,14 @@ def get_pulse_location():
 
 def add_to_metadata_list(*args):
     for param in args:
-        inst_param_list = [param.name, param.instrument_name]
+        inst_param_list = [param._instrument.name, param.name]
         if inst_param_list not in EXPERIMENT_VARS['metadata_list']:
             EXPERIMENT_VARS['metadata_list'].append(inst_param_list)
 
 
 def remove_from_metadata_list(*args):
     for param in args:
-        inst_param_list = [param.name, param.instrument_name]
+        inst_param_list = [param._instrument.name, param.name]
     if inst_param_list in EXPERIMENT_VARS['metadata_list']:
         EXPERIMENT_VARS['metadata_list'].remove(inst_param_list)
 
@@ -464,7 +464,7 @@ def save_plot(dataset, key):
     """
     if isinstance(dataset, int):
         dataset = load(dataset, plot=False)
-    plot = plot_data(dataset, with_title=True, key=key)
+    plot = plot_data(dataset, key=key)
     plot.save()
     return plot
 
