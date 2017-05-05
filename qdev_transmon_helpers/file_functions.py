@@ -484,7 +484,7 @@ def save_fig(plot_to_save, name='analysis', counter=None, pulse=False):
             otherwise save in analysis folder from config, default False.
     """
 
-    fig = getattr(plot_to_save, 'figure', plot_to_save)
+    fig = getattr(plot_to_save, 'figure', plot_to_save) or plot_to_save
 
     if counter is None:
         try:

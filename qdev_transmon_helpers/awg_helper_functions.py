@@ -34,9 +34,9 @@ def get_pulse_dict():
     try:
         pulse_dict = pickle.load(open(path + file_name, "rb"))
     except FileNotFoundError:
-        print('pulse_dict not found, making one')
-        pickle.dump({}, open(path + file_name, 'wb'))
-        pulse_dict = {}
+        print('pulse_dict not found, making one from default values')
+        pulse_dict = default_pulse_dict
+        pickle.dump(pulse_dict, open(path + file_name, 'wb'))
     return pulse_dict
 
 
@@ -359,7 +359,7 @@ def make_save_send_load_awg_file(awg, sequence):
     pulse_location = get_pulse_location()
     try:
         num = get_latest_counter(pulse_location) + 1
-    except FileNotFoundError:
+    except (FileNotFoundError, OSError):
         num = 1
     name = '{0:03d}_{name}.awg'.format(num, name=sequence.name)
     file_location = pulse_location + name
