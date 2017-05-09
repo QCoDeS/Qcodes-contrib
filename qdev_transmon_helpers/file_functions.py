@@ -562,58 +562,48 @@ def save_fig(plot_to_save, name='analysis', counter=None, pulse=False):
 ##########################
 
 
-def plot_cf_data(data_list, data_num=None,
-                 subplot=None, xdata=None,
-                 legend_labels=[], axes_labels=[]):
+def plot_data(data, key=None, matplot=False):
     """
-    Function to plot multiple arrays (of same length) on one axis
-
+    Plotting function for plotting arrays of a dataset in seperate
+    QtPlots, cannot be used with live_plot if there is more than one
+    subplot. If key is specified returns only the plot for the array
+    with the key in the name.
     Args:
-        data_list: list of arrays to be compared
-        data_num (int): number to ascribe to the data optional, should
-            match the name under which the
-            dataset to reference is saved
-        subplot (matplotlib AxesSubplot): optional subplot which this data
-            should be plotted on default None will create new one
-        xdata (array): optional x axis data, default None results in indices
-            of data1 being used
-        legend_labels ['d1 label', ..]: optional labels for data
-        axes_labels ['xlabel', 'ylabel']: optional labels for axes
-
-    Returns:
-        fig, sub (matplotlib.figure.Figure, matplotlib AxesSubplot) if
-            subplot kwarg not None
+        data (qcodes dataset): dataset to be plotted
+        key (str): key which if specified is used to select the first array
+            from the dataset for plotting with a name which contains this key.
+        matplot (bool) (default False): default is to QtPlot the data
     """
-    # set up plotting values
-    if subplot is None:
-        fig, sub = plt.subplots()
+    if hasattr(data, "data_num"):
+        title = title = get_title(data.data_num)
     else:
-        fig, sub = subplot.figure, subplot
-    if data_num is not None:
-        fig.data_num = data_num
-        sub.set_title(get_title(data_num))
-    if (len(legend_labels) == 0) or (len(legend_labels) != len(data_list)):
-        legend_labels = [[]]*len(data_list)
-    if (len(axes_labels) == 0) or (len(axes_labels) != 2):
-        axes_labels = [[]]*2
-    if xdata is None:
-        xdata = np.arange(len(data_list[0]))
-
-    # plot data
-    for i, data in enumerate(data_list):
-        sub.plot(xdata, data, linewidth=1.0, label=legend_labels[i])
-
-    # apply plotting values
-    if any(legend_labels):
-        box = sub.get_position()
-        sub.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-        sub.legend(fontsize=10, bbox_to_anchor=(1, 1))
-    if any(axes_labels):
-        sub.set_xlabel(axes_labels[0])
-        sub.set_ylabel(axes_labels[1])
-
-    if subplot is None:
-        return fig, sub
+        title = ""
+    if key is None:
+        plots = []
+        for value in data.arrays.keys():
+            if "set" not in value:
+                if matplot:
+                    pl = qc.MatPlot(getattr(data, value))
+                else:
+                    pl = qc.QtPlot(getattr(data, value), figsize=(700, 500))
+                    pl.subplots[0].setTitle(title)
+                    pl.subplots[0].showGrid(True, True)
+                plots.append(pl)
+        return plots
+    else:
+        try:
+            key_array_name = [v for v in data.arrays.keys() if key in v][0]
+        except IndexError:
+            raise KeyError('key: {} not in data array '
+                           'names: {}'.format(key,
+                                              list(data.arrays.keys())))
+        if matplot:
+            pl = qc.MatPlot(getattr(data, value))
+        else:
+            pl = qc.QtPlot(getattr(data, key_array_name), figsize=(700, 500))
+            pl.subplots[0].setTitle(title)
+            pl.subplots[0].showGrid(True, True)
+        return pl
 
 
 def plot_data_single_window(dataset, meas_param, key=None):
