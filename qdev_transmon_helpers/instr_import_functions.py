@@ -133,6 +133,7 @@ def import_awg(visa_address, name='awg', timeout=40, station=None):
     awg.ch2_filter(100000000.0)
     awg.ch3_filter(100000000.0)
     awg.ch4_filter(100000000.0)
+    awg.clear_message_queue()
     if station is not None:
         station.add_component(awg)
     logging.info('imported tektronix awg5014c: \'{}\''.format(name))

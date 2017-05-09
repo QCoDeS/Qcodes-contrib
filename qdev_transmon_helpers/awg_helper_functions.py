@@ -54,7 +54,7 @@ def get_pulse_dict():
         print('pulse_dict not found, making one from default values')
         pulse_dict = default_pulse_dict
         pickle.dump(pulse_dict, open(path + file_name, 'wb'))
-    pprint.pprint(pulse_dict, width=1)
+        pprint.pprint(pulse_dict, width=1)
     return pulse_dict
 
 
@@ -162,7 +162,7 @@ def make_ssb_qubit_seq(start=0, stop=200e6, step=1e6, channels=[1, 2, 4]):
     """
     validate_pulse_dictionary()
     ssb_sequence = Sequence(name='qubit_ssb',
-                            variable='sideband_modulation_freq',
+                            variable='ssb_qubit_modulation_freq',
                             variable_unit='Hz',
                             step=step,
                             start=start,
@@ -255,8 +255,8 @@ def make_t1_seq(pi_duration, pi_amp, start=0, stop=5e-6, step=50e-9,
         readout_waveform = readout_template.copy()
         if i == 0:
             readout_waveform.marker_2[10:10 + marker_points] = 1
-        qubit_start = pulse_end_points - delay_points - qubit_points
-        qubit_end = qubit_start + qubit_points
+        qubit_start = int(pulse_end_points - delay_points - qubit_points)
+        qubit_end = int(qubit_start + qubit_points)
         qubit_waveform.wave[qubit_start:qubit_end] = pi_amp
         element.add_waveform(qubit_waveform)
         element.add_waveform(readout_waveform)
@@ -307,8 +307,8 @@ def make_rabi_sequence(pi_amp, start=0, stop=200e-9, step=2e-9,
         readout_waveform = readout_template.copy()
         if i == 0:
             readout_waveform.marker_2[10:10 + marker_points] = 1
-        qubit_start = pulse_end_points - qubit_points
-        qubit_end = pulse_end_points
+        qubit_start = int(pulse_end_points - qubit_points)
+        qubit_end = int(pulse_end_points)
         qubit_waveform.wave[qubit_start:qubit_end] = pi_amp
         element.add_waveform(qubit_waveform)
         element.add_waveform(readout_waveform)

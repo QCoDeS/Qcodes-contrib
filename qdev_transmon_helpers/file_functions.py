@@ -9,6 +9,7 @@ from IPython import get_ipython
 from collections import defaultdict
 from functools import reduce
 import operator
+from dateutil import parser
 
 EXPERIMENT_VARS = {'analysis_loc': False,
                    'data_loc_fmt': False,
@@ -451,7 +452,7 @@ def print_metadata(meta_dict):
                                         meta_dict[instr][param]['unit']))
 
 
-def load(counter, plot=True, metadata=True):
+def load(counter, plot=True, metadata=True, matplot=False):
     """
     Function like shownum which loads dataset, (optionally)
     QtPlot from default location and (optionally) prints metadata for that
@@ -460,7 +461,8 @@ def load(counter, plot=True, metadata=True):
     Args:
         counter (int)
         plot(default True): do you want to return plots as well as dataset?
-        metadata (default True): do you wnat to print the metadata?
+        metadata (default True): do you want to print the metadata?
+        matplot (bool) (default False): default is to QtPlot the data
     Returns:
         dataset (qcodes DataSet)
         plot (QtPlot): optional
@@ -473,12 +475,28 @@ def load(counter, plot=True, metadata=True):
 
     if metadata:
         get_metadata(data, display=True)
-
+        get_data_duration(data)
     if plot:
-        plots = plot_data(counter)
+        plots = plot_data(data, matplot=matplot)
         return data, plots
     else:
         return data
+
+
+def get_data_duration(dataset):
+    if 'loop' in dataset.metadata.keys():
+        start = parser.parse(dataset.metadata['loop']['ts_start'])
+        end = parser.parse(dataset.metadata['loop']['ts_end'])
+    elif 'measurement' in dataset.metadata.keys():
+        start = parser.parse(dataset.metadata['loop']['ts_start'])
+        end = parser.parse(dataset.metadata['loop']['ts_end'])
+    else:
+        raise KeyError('Could not find "loop" or "measurement" in dataset.metadata.keys()')
+    dur = end - start
+    m, s = divmod(dur.total_seconds(), 60)
+    h, m = divmod(m, 60)
+    print("data taking duration %d:%02d:%02d" % (h, m, s))
+    return dur.total_seconds()
 
 
 def save_plot(dataset, key):
@@ -543,7 +561,7 @@ def save_fig(plot_to_save, name='analysis', counter=None, pulse=False):
 ##########################
 
 
-def plot_data(data, key=None):
+def plot_data(data, key=None, matplot=False):
     """
     Plotting function for plotting arrays of a dataset in seperate
     QtPlots, cannot be used with live_plot if there is more than one
@@ -554,6 +572,7 @@ def plot_data(data, key=None):
         data (qcodes dataset): dataset to be plotted
         key (str): key which if specified is used to select the first array
             from the dataset for plotting with a name which contains this key.
+        matplot (bool) (default False): default is to QtPlot the data
     """
     if hasattr(data, "data_num"):
         title = title = get_title(data.data_num)
@@ -563,9 +582,12 @@ def plot_data(data, key=None):
         plots = []
         for value in data.arrays.keys():
             if "set" not in value:
-                pl = qc.QtPlot(getattr(data, value), figsize=(700, 500))
-                pl.subplots[0].setTitle(title)
-                pl.subplots[0].showGrid(True, True)
+                if matplot:
+                    pl = qc.MatPlot(getattr(data, value))
+                else:
+                    pl = qc.QtPlot(getattr(data, value), figsize=(700, 500))
+                    pl.subplots[0].setTitle(title)
+                    pl.subplots[0].showGrid(True, True)
                 plots.append(pl)
         return plots
     else:
@@ -575,9 +597,12 @@ def plot_data(data, key=None):
             raise KeyError('key: {} not in data array '
                            'names: {}'.format(key,
                                               list(data.arrays.keys())))
-        pl = qc.QtPlot(getattr(data, key_array_name), figsize=(700, 500))
-        pl.subplots[0].setTitle(title)
-        pl.subplots[0].showGrid(True, True)
+        if matplot:
+            pl = qc.MatPlot(getattr(data, value))
+        else:
+            pl = qc.QtPlot(getattr(data, key_array_name), figsize=(700, 500))
+            pl.subplots[0].setTitle(title)
+            pl.subplots[0].showGrid(True, True)
         return pl
 
 
@@ -607,44 +632,11 @@ def plot_data_single_window(dataset, meas_param, key=None):
                        'names: {}'.format(key,
                                           list(meas_param.names)))
     plot = qc.QtPlot(figsize=(700 * len(plot_array_names), 500))
-    for i, plot_array_name in plot_array_names:
-        plot.add(getattr(dataset, plot_array_name), subplot=i + 1)
-        plot.subplots[i + 1].showGrid(True, True)
+    for i, plot_array_name in enumerate(plot_array_names):
+        plot.add(getattr(dataset, plot_array_name), subplot=i)
+        plot.subplots[i].showGrid(True, True)
     plot.subplots[0].setTitle(title)
     return plot
-
-
-# def plot_data_single_array(dataset, meas_param, key):
-#     """
-#     Plotting function for plotting array of a dataset in a single window
-#     given a key to search the meas_param names for (works with live plot
-#     and better if you want to save a png or know which arrays to plot)
-
-#     Args:
-#         dataset (qcodes dataset): dataset to be plotted
-#         meas_param: parameter being measured
-#         key (str): string to search the array names of the measured param
-#             for. First array matching this is plotted
-#     """
-#     # if counter is None:
-#     #     counter = dataset.location_provider.counter
-#     # title = get_title(counter)
-#     if hasattr(dataset, "data_num"):
-#         title = title = get_title(dataset.data_num)
-#     else:
-#         title = ""
-#     plot = qc.QtPlot(figsize=(700, 500))
-#     try:
-#         array_name = [v for v in meas_param.names if key in v][0]
-#         inst_meas_name = "{}_{}".format(meas_param._instrument.name,
-#                                         array_name)
-#     except IndexError:
-#         raise KeyError('key: {} not in data array '
-#                        'names: {}'.format(key, list(meas_param.names)))
-#     plot.add(getattr(dataset, inst_meas_name))
-#     plot.subplots[0].showGrid(True, True)
-#     plot.subplots[0].setTitle(title)
-#     return plot
 
 
 ###############################
@@ -707,3 +699,18 @@ def plot_cf_data(data1, data2, data3=None, data4=None, data_num=None,
 
     if subplot is None:
         return fig, sub
+
+def plot_subset(array, x_start=None, x_stop=None, y_start=None, y_stop=None):
+    x_data = np.array(getattr(array, "set_arrays")[1][0])
+    y_data = np.array(getattr(array, "set_arrays")[0])
+    x_label = '{} ({})'.format(getattr(array, "set_arrays")[1].label, getattr(array, "set_arrays")[1].unit)
+    y_label = '{} ({})'.format(getattr(array, "set_arrays")[0].label,getattr(array, "set_arrays")[0].unit)
+    x_indices = np.where((x_data >= (x_start or -1*np.inf)) &  (x_data <= (x_stop or np.inf)))[0]
+    y_indices = np.where((y_data >= (y_start or -1*np.inf)) &  (y_data <= (y_stop or np.inf)))[0]
+    pl = qc.MatPlot(x_data[x_indices[0]:x_indices[-1]],
+                    y_data[y_indices[0]:y_indices[-1]],
+                    array[y_indices[0]:y_indices[-1], x_indices[0]:x_indices[-1]])
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(array.name)
+    return pl

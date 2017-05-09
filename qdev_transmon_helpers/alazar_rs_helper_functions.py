@@ -2,7 +2,7 @@ import qcodes as qc
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
-from . import plot_data_live, plot_data, sweep1d, exp_decay, exp_decay_sin, \
+from . import plot_data_single_window, plot_data, sweep1d, exp_decay, exp_decay_sin, \
     get_title, measure, save_fig, get_calibration_dict
 
 # TODO: init decision for differentiating between vna functions and alazar
@@ -240,7 +240,8 @@ def qubit_sweep_setup(qubit, cavity=None, localos=None, twpa=None,
 
 
 def do_cavity_freq_sweep(cavity, localos, cavity_freq, acq_ctrl,
-                         cavity_pm=10e6, freq_step=1e6, live_plot=True):
+                         cavity_pm=10e6, freq_step=1e6, demod_freq=None, live_plot=True,
+                         key=None, save=True):
     """
     Function which sweeps the cavity frequency around central value by pm_range
     and measures using given acq_ctr, also steps local os to keep same demod
@@ -254,11 +255,19 @@ def do_cavity_freq_sweep(cavity, localos, cavity_freq, acq_ctrl,
         cavity_pm (float) (default 10e6): sweep range will be cavity_freq +-
             this value
         freq_step (float) (default 1e6)
+        demod_freq (float) (default None): default uses the current value
         live_plot (default true)
+        key (default None): string specifying specific parameter array to be
+            plotted, default is to plot all
+        save (default True): whether to save png on completion, nb if you
+            choose not to live plot and the measured parameter returns
+            multiple values then unless you specify a specific one to plot
+            via 'key' then none will be saved.
 
     Args
     """
-    demod_freq = get_demod_freq(cavity, localos, acq_ctrl)
+    if demod_freq is None:
+        demod_freq = get_demod_freq(cavity, localos, acq_ctrl)
     loop = qc.Loop(cavity.frequency.sweep(cavity_freq - cavity_pm,
                                           cavity_freq + cavity_pm,
                                           freq_step)).each(
@@ -267,21 +276,55 @@ def do_cavity_freq_sweep(cavity, localos, cavity_freq, acq_ctrl,
         acq_ctrl.acquisition)
     if live_plot:
         dataset = loop.get_data_set()
-        plot = plot_data_live(dataset, acq_ctrl.acquisition)
+        dataset.data_num = dataset.location_provider.counter
+        plot = plot_data_single_window(dataset, acq_ctrl.acquisition, key=key)
         try:
-            _ = loop.with_bg_task(plot.update).run()
+            if save:
+                _ = loop.with_bg_task(plot.update, plot.save).run()
+            else:
+                _ = loop.with_bg_task(plot.update).run()
+                print('warning: plots not saved, if you want to save this'
+                      'plot run plot.save()')
         except KeyboardInterrupt:
             print("Measurement Interrupted")
         return dataset, plot
     else:
         data = loop.run()
-        plots = plot_data(data)
+        data.data_num = data.location_provider.counter
+        plots = plot_data(data, key=key)
+        if (key is not None) and save:
+            plots.save()
+        else:
+            print('warning: plots not saved. To save one choose '
+                  'and run plots[i].save()')
         return data, plots
+
+
+def calibrate_cavity(cavity, localos, acq_ctrl, centre_freq=None, demod_freq=None,
+                     calib_update=True, cavity_power=-35, lo_power=15, live_plot=True):
+    if centre_freq is None:
+        centre_freq = cavity.frequency()
+    if demod_freq is None:
+        demod_freq = get_demod_freq(cavity, localos, acq_ctrl)
+    cavity.status('on')
+    cavity.power(cavity_power)
+    localos.power(lo_power)
+    data, plot = do_cavity_freq_sweep(cavity, localos, centre_freq, acq_ctrl,
+                                       cavity_pm=3e6, freq_step=0.1e6, demod_freq=demod_freq,
+                                    live_plot=True, key="mag", save=True)
+    good_cavity_freq = find_extreme(data, x_key="frequency_set", y_key="mag", extr="min")[0] + 3e5
+    if calib_update:
+        set_calibration_val('cavity_freqs', good_cavity_freq)
+        set_calibration_val('cavity_pows', cavity_power)
+        set_calibration_val('demod_freqs', demod_freq)
+    set_single_demod_freq(cavity, localos, [acq_ctrl], demod_freq,
+                          cav_freq=good_cavity_freq)
+    print('cavity_freq set to {}'.format(good_cavity_freq))
 
 
 def do_demod_freq_sweep(cavity, localos, acq_ctrl, manual_param,
                         demod_centre=15e6, demod_pm=5e6, demod_step=1e6,
-                        live_plot=True):
+                        live_plot=True, key=None, save=True):
     """
     Function which sweeps the demodulation frequency by sweeping the local
     oscillator and the acq_ctrl demod freq and storing the demod freq as
@@ -296,6 +339,12 @@ def do_demod_freq_sweep(cavity, localos, acq_ctrl, manual_param,
             this value
         demod_step (float) (default 1e6)
         live_plot (default true)
+        key (default None): string specifying specific parameter array to be
+            plotted, default is to plot all
+        save (default True): whether to save png on completion, nb if you
+            choose not to live plot and the measured parameter returns
+            multiple values then unless you specify a specific one to plot
+            via 'key' then none will be saved.
     """
     cav_freq = cavity.frequency()
     loop = qc.Loop(localos.frequency.sweep(cav_freq + demod_centre - demod_pm,
@@ -309,20 +358,60 @@ def do_demod_freq_sweep(cavity, localos, acq_ctrl, manual_param,
         manual_param)
     if live_plot:
         dataset = loop.get_data_set()
-        plot = plot_data_live(dataset, acq_ctrl.acquisition)
+        dataset.data_num = dataset.location_provider.counter
+        plot = plot_data_single_window(dataset, acq_ctrl.acquisition, key=key)
         try:
-            _ = loop.with_bg_task(plot.update).run()
+            if save:
+                _ = loop.with_bg_task(plot.update, plot.save).run()
+            else:
+                _ = loop.with_bg_task(plot.update).run()
+                print('warning: plots not saved, if you want to save this'
+                      'plot run plot.save()')
         except KeyboardInterrupt:
             print("Measurement Interrupted")
         return dataset, plot
     else:
         data = loop.run()
-        plots = plot_data(data)
+        data.data_num = data.location_provider.counter
+        plots = plot_data(data, key=key)
+        if (key is not None) and save:
+            plots.save()
+        else:
+            print('warning: plots not saved. To save one choose '
+                  'and run plots[i].save()')
         return data, plots
 
+def find_extreme(data, x_key="freq", y_key="mag", extr="min"):
+    try:
+        x_key_array_name = [v for v in data.arrays.keys() if x_key in v][0]
+    except IndexError:
+        raise KeyError('keys: {} not in data array '
+                           'names: {}'.format(x_key,
+                                              list(data.arrays.keys())))
+    try:
+        y_key_array_name = [v for v in data.arrays.keys() if y_key in v][0]
+    except IndexError:
+        raise KeyError('keys: {} not in data array '
+                           'names: {}'.format(y_key,
+                                              list(data.arrays.keys())))
+            
+    x_data = getattr(data, x_key_array_name)
+    y_data = getattr(data, y_key_array_name)
+    if extr is "min":
+        index = np.argmin(y_data)
+        val = np.amin(y_data)
+    elif extr is "max":
+        index = np.argmax(y_data)
+        val = np.amax(y_data)
+    else:
+        raise ValueError('extr must be set to "min" or "max", given'
+                         ' {}'.format(extr))
+    extr_freq = x_data[index]
+    return extr_freq, val
 
 def sweep_2d_ssb(qubit, acq_ctrl, centre_freq, sweep_param,
-                 start, stop, step, delay=0.01, live_plot=True):
+                 start, stop, step, delay=0.01, live_plot=True,
+                 key=None, save=True):
     qubit.frequency(centre_freq + 100e6)
     acq_ctrl.acquisition.set_base_setpoints(base_name='ssb_qubit_drive_freq',
                                             base_label='Qubit Drive Frequency',
@@ -330,7 +419,7 @@ def sweep_2d_ssb(qubit, acq_ctrl, centre_freq, sweep_param,
                                             setpoints_start=centre_freq + 100e6,
                                             setpoints_stop=centre_freq - 100e6)
     return sweep1d(acq_ctrl.acquisition, sweep_param, start,
-                   stop, step, delay=delay, live_plot=live_plot)
+                   stop, step, delay=delay, live_plot=live_plot, key=key, save=save)
 
 ###################
 # Remove if above works
@@ -476,14 +565,15 @@ def do_tracking_ssb_gate_sweep(qubit, cavity, localos, rec_acq_ctrl,
 #         return data, plots
 
 
-def measure_ssb(qubit, acq_ctrl, centre_freq, live_plot=True):
+def measure_ssb(qubit, acq_ctrl, centre_freq, live_plot=True,
+  key=None, save=True):
     qubit.frequency(centre_freq + 100e6)
     acq_ctrl.acquisition.set_base_setpoints(base_name='ssb_qubit_drive_freq',
                                             base_label='Qubit Drive Frequency',
                                             base_unit='Hz',
                                             setpoints_start=centre_freq + 100e6,
                                             setpoints_stop=centre_freq - 100e6)
-    return measure(acq_ctrl.acquisition)
+    return measure(acq_ctrl.acquisition, key=key, save=save)
 
 
 # def do_rabi_freq_sweep(qubit, acq_ctrl, qubit_freq, qubit_freq_pm=4e6,
