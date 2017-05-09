@@ -20,9 +20,10 @@ EXPERIMENT_VARS = {'analysis_loc': False,
 
 
 # TODO: test in_ipynb vs qc.in_notebook (and potentially replace)
-# TODO: delete counter code when data_num check passed
 # TODO: replace plot_cf_data with a less rubbish version
 # TODO: either get 'file format' to behave as wanted or remove freedom
+# TODO: docstrings
+# TODO: plot_subset to work with both dimensions soft?
 
 def getFromDict(dataDict, mapList):
     """
@@ -561,49 +562,58 @@ def save_fig(plot_to_save, name='analysis', counter=None, pulse=False):
 ##########################
 
 
-def plot_data(data, key=None, matplot=False):
+def plot_cf_data(data_list, data_num=None,
+                 subplot=None, xdata=None,
+                 legend_labels=[], axes_labels=[]):
     """
-    Plotting function for plotting arrays of a dataset in seperate
-    QtPlots, cannot be used with live_plot if there is more than one
-    subplot. If key is specified returns only the plot for the array
-    with the key in the name.
+    Function to plot multiple arrays (of same length) on one axis
 
     Args:
-        data (qcodes dataset): dataset to be plotted
-        key (str): key which if specified is used to select the first array
-            from the dataset for plotting with a name which contains this key.
-        matplot (bool) (default False): default is to QtPlot the data
+        data_list: list of arrays to be compared
+        data_num (int): number to ascribe to the data optional, should
+            match the name under which the
+            dataset to reference is saved
+        subplot (matplotlib AxesSubplot): optional subplot which this data
+            should be plotted on default None will create new one
+        xdata (array): optional x axis data, default None results in indices
+            of data1 being used
+        legend_labels ['d1 label', ..]: optional labels for data
+        axes_labels ['xlabel', 'ylabel']: optional labels for axes
+
+    Returns:
+        fig, sub (matplotlib.figure.Figure, matplotlib AxesSubplot) if
+            subplot kwarg not None
     """
-    if hasattr(data, "data_num"):
-        title = title = get_title(data.data_num)
+    # set up plotting values
+    if subplot is None:
+        fig, sub = plt.subplots()
     else:
-        title = ""
-    if key is None:
-        plots = []
-        for value in data.arrays.keys():
-            if "set" not in value:
-                if matplot:
-                    pl = qc.MatPlot(getattr(data, value))
-                else:
-                    pl = qc.QtPlot(getattr(data, value), figsize=(700, 500))
-                    pl.subplots[0].setTitle(title)
-                    pl.subplots[0].showGrid(True, True)
-                plots.append(pl)
-        return plots
-    else:
-        try:
-            key_array_name = [v for v in data.arrays.keys() if key in v][0]
-        except IndexError:
-            raise KeyError('key: {} not in data array '
-                           'names: {}'.format(key,
-                                              list(data.arrays.keys())))
-        if matplot:
-            pl = qc.MatPlot(getattr(data, value))
-        else:
-            pl = qc.QtPlot(getattr(data, key_array_name), figsize=(700, 500))
-            pl.subplots[0].setTitle(title)
-            pl.subplots[0].showGrid(True, True)
-        return pl
+        fig, sub = subplot.figure, subplot
+    if data_num is not None:
+        fig.data_num = data_num
+        sub.set_title(get_title(data_num))
+    if (len(legend_labels) == 0) or (len(legend_labels) != len(data_list)):
+        legend_labels = [[]]*len(data_list)
+    if (len(axes_labels) == 0) or (len(axes_labels) != 2):
+        axes_labels = [[]]*2
+    if xdata is None:
+        xdata = np.arange(len(data_list[0]))
+
+    # plot data
+    for i, data in enumerate(data_list):
+        sub.plot(xdata, data, linewidth=1.0, label=legend_labels[i])
+
+    # apply plotting values
+    if any(legend_labels):
+        box = sub.get_position()
+        sub.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        sub.legend(fontsize=10, bbox_to_anchor=(1, 1))
+    if any(axes_labels):
+        sub.set_xlabel(axes_labels[0])
+        sub.set_ylabel(axes_labels[1])
+
+    if subplot is None:
+        return fig, sub
 
 
 def plot_data_single_window(dataset, meas_param, key=None):
@@ -644,17 +654,14 @@ def plot_data_single_window(dataset, meas_param, key=None):
 ###############################
 
 
-def plot_cf_data(data1, data2, data3=None, data4=None, data_num=None,
+def plot_cf_data(data_list, data_num=None,
                  subplot=None, xdata=None,
-                 legend_labels=[[]] * 4, axes_labels=[[]] * 2):
+                 legend_labels=[], axes_labels=[]):
     """
     Function to plot multiple arrays (of same length) on one axis
 
     Args:
-        data1 (array)
-        data2 (array)
-        data3 (array): optional
-        data4 (array): optional
+        data_list: list of arrays to be compared
         data_num (int): number to ascribe to the data optional, should
             match the name under which the
             dataset to reference is saved
@@ -677,28 +684,58 @@ def plot_cf_data(data1, data2, data3=None, data4=None, data_num=None,
     if data_num is not None:
         fig.data_num = data_num
         sub.set_title(get_title(data_num))
-    if len(legend_labels) < 4:
-        legend_labels.extend([[]] * (4 - len(legend_labels)))
+    if (len(legend_labels) == 0) or (len(legend_labels) != len(data_list)):
+        legend_labels = [[]]*len(data_list)
+    if (len(axes_labels) == 0) or (len(axes_labels) != 2):
+        axes_labels = [[]]*2
     if xdata is None:
-        xdata = np.arange(len(data1))
+        xdata = np.arange(len(data_list[0]))
 
     # plot data
-    sub.plot(xdata, data1, 'r', linewidth=1.0, label=legend_labels[0])
-    sub.plot(xdata, data2, 'b', linewidth=1.0, label=legend_labels[1])
-    if data3 is not None:
-        sub.plot(xdata, data3, 'g', linewidth=1.0, label=legend_labels[2])
-    if data4 is not None:
-        sub.plot(xdata, data4, 'y', linewidth=1.0, label=legend_labels[3])
+    for i, data in enumerate(data_list):
+        sub.plot(xdata, data, linewidth=1.0, label=legend_labels[i])
 
     # apply plotting values
     if any(legend_labels):
-        sub.legend(loc='upper right', fontsize=10)
+        box = sub.get_position()
+        sub.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        sub.legend(fontsize=10, bbox_to_anchor=(1, 1))
     if any(axes_labels):
         sub.set_xlabel(axes_labels[0])
         sub.set_ylabel(axes_labels[1])
 
     if subplot is None:
         return fig, sub
+
+def line_cut(array, vals, axis='y', data_num=None):
+    x_data = np.array(getattr(array, "set_arrays")[1][0])
+    y_data = np.array(getattr(array, "set_arrays")[0])
+    x_label = '{} ({})'.format(getattr(array, "set_arrays")[1].label, getattr(array, "set_arrays")[1].unit)
+    y_label = '{} ({})'.format(getattr(array, "set_arrays")[0].label,getattr(array, "set_arrays")[0].unit)
+    z_label = array.name
+    values = np.zeros(len(vals))
+    if axis is 'x':
+        z_data = np.zeros((len(vals), len(y_data)))
+        for i, v in enumerate(vals):
+            x_index = np.where(x_data == v)
+            z_data[i] = array[:, x_index]
+        fig, sub = plot_cf_data(z_data,
+                                xdata=y_data,
+                                data_num=data_num,
+                                legend_labels=["{} {}".format(v,x_label) for v in vals],
+                                axes_labels=[y_label, z_label])
+    
+    elif axis is 'y':
+        z_data = np.zeros((len(vals), len(x_data)))
+        for i, v in enumerate(vals):
+            y_index = np.where(y_data == v)
+            z_data[i] = array[y_index, :]
+        fig, sub = plot_cf_data(z_data,
+                                xdata=x_data,
+                                data_num=data_num,
+                                legend_labels=[str(v)+y_label for v in vals],
+                                axes_labels=[x_label, z_label])
+    return fig, sub
 
 def plot_subset(array, x_start=None, x_stop=None, y_start=None, y_stop=None):
     x_data = np.array(getattr(array, "set_arrays")[1][0])
