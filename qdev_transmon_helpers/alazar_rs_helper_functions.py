@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from . import plot_data_single_window, plot_data, sweep1d, exp_decay, exp_decay_sin, \
-    get_title, measure, save_fig, get_calibration_dict
+    get_title, measure, save_fig, get_calibration_dict, get_calibration_val, set_calibration_val
 
 # TODO: init decision for differentiating between vna functions and alazar
 #   functions
@@ -15,6 +15,7 @@ from . import plot_data_single_window, plot_data, sweep1d, exp_decay, exp_decay_
 #    qubit_from_ssb_volt_sweep, find_qubit, find_cavity_val
 # TODO: _ ?
 # TODO: Remove do_rabi_freq_sweep, do_rabi_pow_sweep
+# TODO: find qubit to compare to average
 
 
 def config_alazar(alazar, seq_mode=0, clock_source='EXTERNAL_CLOCK_10MHz_REF'):
@@ -165,80 +166,6 @@ def remove_demod_freqs(acq_ctrl):
         acq_ctrl.demod_freqs.remove_demodulator(freq)
 
 
-def cavity_sweep_setup(cavity, localos, qubit=None, twpa=None,
-                       cav_pow=-35, locos_pow=15):
-    """
-    Turns on cavity and local os, and sets powers.
-    Optionally turns off qubit and turns on twpa
-
-    Args:
-        cavity instrument (r&s SGS100)
-        localos instrument (r&s SGS100)
-        qubit instrument (r&s SGS100) (default none)
-        twpa instrument (r&s SGS100) (default none)
-        cav_pow (int) (default -35)
-        localos_pow (int) (default 15)
-
-    """
-    cavity.power(cav_pow)
-    localos.power(locos_pow)
-    cavity.status('on')
-    localos.status('on')
-    if qubit is not None:
-        qubit.status('off')
-    if twpa is not None:
-        twpa.status('on')
-
-
-def qubit_spectroscopy_setup(qubit, cavity=None, localos=None,
-                             twpa=None, qubit_pow=-25):
-    """
-    Turns on qubit and sets it's power.
-    Optionally turns on cavity, local os and twpa
-
-    Args:
-        qubit instrument (r&s SGS100)
-        cavity instrument (r&s SGS100) (default none)
-        localos instrument (r&s SGS100) (default none)
-        twpa instrument (r&s SGS100) (default none)
-        qubit_pow (int) (default -25)
-    """
-    qubit.power(qubit_pow)
-    qubit.status('on')
-    if cavity is not None:
-        cavity.status('on')
-    if localos is not None:
-        localos.status('on')
-    if twpa is not None:
-        twpa.status('on')
-
-
-def qubit_sweep_setup(qubit, cavity=None, localos=None, twpa=None,
-                      qubit_pow=-5, qubit_freq=None):
-    """
-    Turns on qubit and sets it's power and optionally frequency.
-    Optionally turns on cavity, local os and twpa
-
-    Args:
-        qubit instrument (r&s SGS100)
-        cavity instrument (r&s SGS100) (default none)
-        localos instrument (r&s SGS100) (default none)
-        twpa instrument (r&s SGS100) (default none)
-        qubit_pow (int) (default -5)
-        qubit_freq (float) (default None)
-    """
-    qubit.power(qubit_pow)
-    qubit.status('on')
-    if cavity is not None:
-        cavity.status('on')
-    if localos is not None:
-        localos.status('on')
-    if twpa is not None:
-        twpa.status('on')
-    if qubit_freq is not None:
-        qubit.frequency(qubit_freq)
-
-
 def do_cavity_freq_sweep(cavity, localos, cavity_freq, acq_ctrl,
                          cavity_pm=10e6, freq_step=1e6, demod_freq=None, live_plot=True,
                          key=None, save=True):
@@ -322,65 +249,6 @@ def calibrate_cavity(cavity, localos, acq_ctrl, centre_freq=None, demod_freq=Non
     print('cavity_freq set to {}'.format(good_cavity_freq))
 
 
-def do_demod_freq_sweep(cavity, localos, acq_ctrl, manual_param,
-                        demod_centre=15e6, demod_pm=5e6, demod_step=1e6,
-                        live_plot=True, key=None, save=True):
-    """
-    Function which sweeps the demodulation frequency by sweeping the local
-    oscillator and the acq_ctrl demod freq and storing the demod freq as
-    a manual param value.
-
-    Args:
-        cavity instrument (r&s SGS100)
-        localos instrument (r&s SGS100)
-        acq_ctrl instrument (alazar acq controller)
-        demod_centre (default 15e6): central demodulation freq
-        demod_pm (float) (default 5e6): sweep range will be demod_centre +-
-            this value
-        demod_step (float) (default 1e6)
-        live_plot (default true)
-        key (default None): string specifying specific parameter array to be
-            plotted, default is to plot all
-        save (default True): whether to save png on completion, nb if you
-            choose not to live plot and the measured parameter returns
-            multiple values then unless you specify a specific one to plot
-            via 'key' then none will be saved.
-    """
-    cav_freq = cavity.frequency()
-    loop = qc.Loop(localos.frequency.sweep(cav_freq + demod_centre - demod_pm,
-                                           cav_freq + demod_centre + demod_pm,
-                                           demod_step)).each(
-        qc.Task(remove_demod_freqs, acq_ctrl),
-        qc.Task(acq_ctrl.demod_freqs.add_demodulator,
-                (localos.frequency - cav_freq)),
-        qc.Task(manual_param.set, (localos.frequency - cav_freq)),
-        acq_ctrl.acquisition,
-        manual_param)
-    if live_plot:
-        dataset = loop.get_data_set()
-        dataset.data_num = dataset.location_provider.counter
-        plot = plot_data_single_window(dataset, acq_ctrl.acquisition, key=key)
-        try:
-            if save:
-                _ = loop.with_bg_task(plot.update, plot.save).run()
-            else:
-                _ = loop.with_bg_task(plot.update).run()
-                print('warning: plots not saved, if you want to save this'
-                      'plot run plot.save()')
-        except KeyboardInterrupt:
-            print("Measurement Interrupted")
-        return dataset, plot
-    else:
-        data = loop.run()
-        data.data_num = data.location_provider.counter
-        plots = plot_data(data, key=key)
-        if (key is not None) and save:
-            plots.save()
-        else:
-            print('warning: plots not saved. To save one choose '
-                  'and run plots[i].save()')
-        return data, plots
-
 def find_extreme(data, x_key="freq", y_key="mag", extr="min"):
     try:
         x_key_array_name = [v for v in data.arrays.keys() if x_key in v][0]
@@ -409,6 +277,18 @@ def find_extreme(data, x_key="freq", y_key="mag", extr="min"):
     extr_freq = x_data[index]
     return extr_freq, val
 
+
+def set_cavity_from_calib_dict(cavity, localos, acq_ctrls, num_avg=1000):
+    for acq_ctrl in acq_ctrls:
+        acq_ctrl.int_time(get_calibration_val('int_times'))
+        acq_ctrl.int_delay(get_calibration_val('int_delays'))
+        acq_ctrl.num_avg(num_avg)
+    cavity.power(get_calibration_val('cavity_pows'))
+    set_single_demod_freq(cavity, localos, acq_ctrls,
+                          get_calibration_val('demod_freqs'),
+                          cav_freq=get_calibration_val('cavity_freqs'))
+
+
 def sweep_2d_ssb(qubit, acq_ctrl, centre_freq, sweep_param,
                  start, stop, step, delay=0.01, live_plot=True,
                  key=None, save=True):
@@ -420,47 +300,6 @@ def sweep_2d_ssb(qubit, acq_ctrl, centre_freq, sweep_param,
                                             setpoints_stop=centre_freq - 100e6)
     return sweep1d(acq_ctrl.acquisition, sweep_param, start,
                    stop, step, delay=delay, live_plot=live_plot, key=key, save=save)
-
-###################
-# Remove if above works
-
-
-def do_ssb_pow_sweep(qubit, acq_ctrl, qubit_freq, qubit_pow_start=-5,
-                     qubit_pow_stop=-25, qubit_pow_step=2, live_plot=True):
-    qubit.frequency(qubit_freq + 100e6)
-    acq_ctrl.acquisition.set_base_setpoints(base_name='ssb_qubit_drive_freq',
-                                            base_label='Qubit Drive Frequency',
-                                            base_unit='Hz',
-                                            setpoints_start=qubit_freq + 100e6,
-                                            setpoints_stop=qubit_freq - 100e6)
-    return sweep1d(acq_ctrl.acquisition, qubit.power, qubit_pow_start,
-                   qubit_pow_stop, qubit_pow_step, live_plot=live_plot)
-
-
-def do_ssb_time_sweep(qubit, acq_ctrl, manual_param, qubit_freq, time=500,
-                      live_plot=True):
-    qubit.frequency(qubit_freq + 100e6)
-    acq_ctrl.acquisition.set_base_setpoints(base_name='ssb_qubit_drive_freq',
-                                            base_label='Qubit Drive Frequency',
-                                            base_unit='Hz',
-                                            setpoints_start=qubit_freq + 100e6,
-                                            setpoints_stop=qubit_freq - 100e6)
-    return sweep1d(acq_ctrl.acquisition, manual_param, 0,
-                   time, 1, live_plot=live_plot)
-
-
-def do_ssb_gate_sweep(qubit, acq_ctrl, gate, qubit_freq, gate_start, gate_stop,
-                      gate_step, live_plot=True):
-    qubit.frequency(qubit_freq + 100e6)
-    acq_ctrl.acquisition.set_base_setpoints(base_name='ssb_qubit_drive_freq',
-                                            base_label='Qubit Drive Frequency',
-                                            base_unit='Hz',
-                                            setpoints_start=qubit_freq + 100e6,
-                                            setpoints_stop=qubit_freq - 100e6)
-    return sweep1d(acq_ctrl.acquisition, gate, gate_start,
-                   gate_stop, gate_step, live_plot=live_plot)
-
-###################
 
 
 def qubit_from_ssb_measure(dataset, gradient_sign=1, min_res_width=4e6):
@@ -491,8 +330,33 @@ def qubit_from_ssb_volt_sweep(dataset, gradient_sign=1, min_res_width=4e6,
     #                   min_res_width=min_res_width)
 
 
-def find_qubit(freq_array, mag_array, gradient_sign=1, min_res_width=4e6):
-    raise NotImplementedError
+def find_qubit(awg, alazar, acq_ctrl, qubit, start_freq=4e9, stop_freq=6e9, qubit_power=None, calib_update=True):
+    if 'ssb_qubit' not in acq_ctrl.acquisition.setpoint_names[0][0]:
+        ssb_seq = make_ssb_qubit_seq()
+        set_up_sequence(awg1, alazar, [acq_ctrl], ssb_seq, seq_mode=1)
+    else:
+        alazar.seq_mode(1)
+    if qubit_power is None:
+        qubit_power = get_calibration_val('spec_powers')
+    qubit.status('on')
+    qubit.power(qubit_power)
+    qubit_freq = None
+    qubit_mag = 0
+    for centre in np.linspace(start_freq+100e6, stop_freq-100e6, num=(stop_freq-start_freq)/200e6):
+        ssb_centre = centre
+        data, pl = measure_ssb(qubit, acq_ctrl, ssb_centre, live_plot=True, key="mag")
+        freq, maximum = find_extreme(data, x_key="set", extr="max")
+        if maximum > qubit_mag:
+            qubit_freq = freq
+            qubit_mag = maximum
+    if calib_update:
+        set_calibration_val('actual_qubit_positions', qubit_freq)
+        set_calibration_val('spec_powers', qubit_power)
+    print('qubit found at {}, mag {}'.format(qubit_freq, qubit_mag))
+    return qubit_freq, qubit_mag
+
+# def find_qubit(freq_array, mag_array, gradient_sign=1, min_res_width=4e6):
+    # raise NotImplementedError
     # max_freq = np.amax(freq_array)
     # min_freq = np.amin(freq_array)
     # sampling_rate = len(freq_array) / (max_freq - min_freq)
@@ -574,28 +438,6 @@ def measure_ssb(qubit, acq_ctrl, centre_freq, live_plot=True,
                                             setpoints_start=centre_freq + 100e6,
                                             setpoints_stop=centre_freq - 100e6)
     return measure(acq_ctrl.acquisition, key=key, save=save)
-
-
-# def do_rabi_freq_sweep(qubit, acq_ctrl, qubit_freq, qubit_freq_pm=4e6,
-#                        qubit_freq_step=0.5e6, live_plot=True):
-#     qubit_freq_start = qubit_freq - qubit_freq_pm
-#     qubit_freq_stop = qubit_freq + qubit_freq_pm
-#     return sweep1d(acq_ctrl.acquisition, qubit.frequency, qubit_freq_start,
-#                    qubit_freq_stop, qubit_freq_step, live_plot=live_plot)
-
-
-# def do_rabi_pow_sweep(qubit, acq_ctrl, qubit_pow_start=-3,
-#                       qubit_pow_stop=-10, qubit_pow_step=1, live_plot=True):
-#     return sweep1d(acq_ctrl.acquisition, qubit.power, qubit_pow_start,
-#                    qubit_pow_stop, qubit_pow_step, live_plot=live_plot)
-
-
-# def do_ramsey_freq_sweep(qubit, acq_ctrl, qubit_freq, qubit_freq_pm=4e6,
-#                          qubit_freq_step=0.5e6, live_plot=True):
-#     qubit_freq_start = qubit_freq - qubit_freq_pm
-#     qubit_freq_stop = qubit_freq + qubit_freq_pm
-#     return sweep1d(acq_ctrl.acquisition, qubit.frequency, qubit_freq_start,
-#                    qubit_freq_stop, qubit_freq_step, live_plot=live_plot)
 
 
 def get_t1(data, x_name='delay', y_name='magnitude',
@@ -703,11 +545,11 @@ def get_t2(data, x_name='delay', y_name='magnitude',
             num = counter
         try:
             qubit = get_calibration_dict()['current_qubit']
-            title = '{}_{}_T1'.format(get_title(num), qubit)
-            name = '{}_{}_T1'.format(num, qubit)
+            title = '{}_{}_T2'.format(get_title(num), qubit)
+            name = '{}_{}_T2'.format(num, qubit)
         except Exception:
-            title = '{}_T1'.format(get_title(num))
-            name = '{}_T1'.format(num)
+            title = '{}_T2'.format(get_title(num))
+            name = '{}_T2'.format(num)
 
         if (not hasattr(fig, "data_num")) and (counter is not None):
             fig.data_num = num

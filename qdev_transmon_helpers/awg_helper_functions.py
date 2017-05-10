@@ -344,7 +344,7 @@ def make_ramsey_sequence(pi_duration, pi_amp, start=0, stop=200e-9, step=2e-9,
     readout_points = round(p_dict['readout_time'] / resolution)
     pulse_end_points = round(p_dict['pulse_end'] / resolution)
     marker_points = round(p_dict['marker_time'] / resolution)
-    qubit_points = pi_duration / resolution
+    qubit_points = round(pi_duration / resolution)
     total_points = round(p_dict['cycle_duration'] / resolution)
 
     readout_template = Waveform(length=total_points, channel=channels[1])

@@ -240,10 +240,9 @@ def find_peaks(dataset, fs, cutoff=0.2e-6, order=5,
         print('warning: check title, could be wrong datanum')
 
     # plot: unsmoothed data, smoothed data and add peak estimate values
-    fig, subplot = plot_cf_data(unsmoothed_data,
-                                smoothed_data,
+    fig, subplot = plot_cf_data([unsmoothed_data, smoothed_data],
                                 xdata=setpoints,
-                                datanum=num,
+                                data_num=num,
                                 axes_labels=['frequency(Hz)', 'S21'])
     subplot.plot(setpoints[peakind], smoothed_data[peakind], 'gs')
     txt = '{} resonances found at {}'.format(len(peakind), setpoints[peakind])

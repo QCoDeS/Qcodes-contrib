@@ -489,8 +489,8 @@ def get_data_duration(dataset):
         start = parser.parse(dataset.metadata['loop']['ts_start'])
         end = parser.parse(dataset.metadata['loop']['ts_end'])
     elif 'measurement' in dataset.metadata.keys():
-        start = parser.parse(dataset.metadata['loop']['ts_start'])
-        end = parser.parse(dataset.metadata['loop']['ts_end'])
+        start = parser.parse(dataset.metadata['measurement']['ts_start'])
+        end = parser.parse(dataset.metadata['measurement']['ts_end'])
     else:
         raise KeyError('Could not find "loop" or "measurement" in dataset.metadata.keys()')
     dur = end - start

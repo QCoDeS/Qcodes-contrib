@@ -46,6 +46,18 @@ def import_decadac(port=5, station=None, chan_count=None, all_chans_0=False):
     return dec_slots, dec_chans
 
 
+def import_yoko(visa_address, name='yoko', station=None):
+    from qcodes.instrument_drivers.yokogawa.GS200 import GS200
+    yoko = GS200(name, visa_address)
+    yoko.voltage.set_step(0.1)
+    yoko.voltage.set_step(0.1)
+    if station is not None:
+        station.add_component(yoko)
+    logging.info('imported yoko GS200: \'{}\''.format(name))
+    print('imported yoko ZNB20: \'{}\''.format(name))
+    print('-------------------------')
+    return yoko
+
 def import_vna(visa_address, name='vna', station=None):
     from qcodes.instrument_drivers.rohde_schwarz.ZNB20 import ZNB20
     vna = ZNB20(name, visa_address)
