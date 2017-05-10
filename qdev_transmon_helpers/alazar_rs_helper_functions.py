@@ -227,12 +227,13 @@ def do_cavity_freq_sweep(cavity, localos, cavity_freq, acq_ctrl,
         return data, plots
 
 
-def calibrate_cavity(cavity, localos, acq_ctrl, centre_freq=None, demod_freq=None,
+def calibrate_cavity(cavity, localos, acq_ctrl, alazar, centre_freq=None, demod_freq=None,
                      calib_update=True, cavity_power=-35, lo_power=15, live_plot=True):
     if centre_freq is None:
         centre_freq = cavity.frequency()
     if demod_freq is None:
         demod_freq = get_demod_freq(cavity, localos, acq_ctrl)
+    alazar.seq_mode(0)
     cavity.status('on')
     cavity.power(cavity_power)
     localos.power(lo_power)
