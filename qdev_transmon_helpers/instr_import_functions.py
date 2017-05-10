@@ -49,8 +49,8 @@ def import_decadac(port=5, station=None, chan_count=None, all_chans_0=False):
 def import_yoko(visa_address, name='yoko', station=None):
     from qcodes.instrument_drivers.yokogawa.GS200 import GS200
     yoko = GS200(name, visa_address)
-    yoko.voltage.set_step(0.1)
-    yoko.voltage.set_step(0.1)
+    yoko.voltage.set_step(0.05)
+    yoko.voltage.set_delay(0.5)
     if station is not None:
         station.add_component(yoko)
     logging.info('imported yoko GS200: \'{}\''.format(name))

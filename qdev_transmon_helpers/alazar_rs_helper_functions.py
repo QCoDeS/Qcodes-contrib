@@ -3,8 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from . import plot_data_single_window, plot_data, sweep1d, exp_decay, exp_decay_sin, \
-    get_title, measure, save_fig, get_calibration_dict, get_calibration_val, set_calibration_val
-
+    get_title, measure, save_fig, get_calibration_dict, get_calibration_val, set_calibration_val, \
+    make_ssb_qubit_seq
 # TODO: init decision for differentiating between vna functions and alazar
 #   functions
 # TODO: exception types
@@ -369,6 +369,26 @@ def find_qubit(awg, alazar, acq_ctrl, qubit, start_freq=4e9, stop_freq=6e9, qubi
     #     qubit_freq_index = np.argmin(smoothed_data)
     # qubit_freq = freq_data_array[qubit_freq_index]
     # return qubit_freq
+
+def do_rabis(awg, alazar, acq_ctrl, qubit, start_dur=0, stop_dur=200e-9, step_dur=1e-9,
+                       pi_pulse_amp=None, qubit_power=None, freq_centre=None, freq_span=20e6, freq_step=2e6, calib_update=True):
+    rabi_uploaded = 'drive_duration' in acq_ctrl.acquisition.setpoint_names[0][0]
+    if (qubit_power is not None) or (pi_pulse_amp is not None) or not rabi_uploaded:
+        qubit_power = qubit_power or get_calibration_val('pi_pulse_powers')
+        qubit.power(qubit_power)
+        pi_pulse_amp = pi_pulse_amp or get_calibration_val('pi_pulse_amplitudes')
+        rabi_seq = make_rabi_sequence(pi_pulse_amp, start=start_dur, stop=stop_dur, step=step_dur)
+        set_up_sequence(awg, alazar, [acq_ctrl], rabi_seq, seq_mode=1)
+    else:
+        alazar.seq_mode(1)
+    qubit.status('on')
+    
+    centre = freq_centre or get_calibration_val('actual_qubit_positions')
+    freq_start = centre - 20e6
+    freq_stop = centre + 20e6
+
+    data, plot = sweep1d(acq_ctrl.acquisition, qubit.frequency, freq_start, freq_stop, freq_step, 
+                          live_plot=True, key="mag", save=True)
 
 
 def find_cavity_val(acq_controller, cavity, localos, old_position=None,
