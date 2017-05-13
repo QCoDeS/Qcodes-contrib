@@ -2,6 +2,7 @@ import numpy as np
 from math import sqrt, factorial
 from scipy import signal
 
+# TODO: make_gaussian rename + docstring
 
 def qubit_from_push(g, push, bare_res):
     """
@@ -136,4 +137,10 @@ def smooth_data_butter(data, fs, cutoff, order):
     """
     b, a = butter_lowpass(cutoff, fs, order)
     y = signal.filtfilt(b, a, data)
+    return y
+
+
+def make_gaussian(sampling_rate, sigma, total_sigmas, amp):
+    t = np.linspace(-1*total_sigmas*sigma, total_sigmas*sigma, num=(sampling_rate*total_sigmas*sigma)+1)
+    y = amp * np.exp(-(t/(2*sigma))**2)
     return y

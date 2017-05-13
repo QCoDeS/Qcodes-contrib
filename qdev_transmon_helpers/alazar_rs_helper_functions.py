@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from . import plot_data_single_window, plot_data, sweep1d, exp_decay, exp_decay_sin, \
     get_title, measure, save_fig, get_calibration_dict, get_calibration_val, set_calibration_val, \
-    make_ssb_qubit_seq
+    make_ssb_qubit_seq, set_up_sequence
 # TODO: init decision for differentiating between vna functions and alazar
 #   functions
 # TODO: exception types
@@ -233,6 +233,7 @@ def calibrate_cavity(cavity, localos, acq_ctrl, alazar, centre_freq=None, demod_
         centre_freq = cavity.frequency()
     if demod_freq is None:
         demod_freq = get_demod_freq(cavity, localos, acq_ctrl)
+    alazar_mode = alazar.seq_mode()
     alazar.seq_mode(0)
     cavity.status('on')
     cavity.power(cavity_power)
@@ -247,6 +248,7 @@ def calibrate_cavity(cavity, localos, acq_ctrl, alazar, centre_freq=None, demod_
         set_calibration_val('demod_freqs', demod_freq)
     set_single_demod_freq(cavity, localos, [acq_ctrl], demod_freq,
                           cav_freq=good_cavity_freq)
+    alazar.seq_mode(alazar_mode)
     print('cavity_freq set to {}'.format(good_cavity_freq))
 
 
@@ -373,14 +375,14 @@ def find_qubit(awg, alazar, acq_ctrl, qubit, start_freq=4e9, stop_freq=6e9, qubi
 def do_rabis(awg, alazar, acq_ctrl, qubit, start_dur=0, stop_dur=200e-9, step_dur=1e-9,
                        pi_pulse_amp=None, qubit_power=None, freq_centre=None, freq_span=20e6, freq_step=2e6, calib_update=True):
     rabi_uploaded = 'drive_duration' in acq_ctrl.acquisition.setpoint_names[0][0]
-    if (qubit_power is not None) or (pi_pulse_amp is not None) or not rabi_uploaded:
-        qubit_power = qubit_power or get_calibration_val('pi_pulse_powers')
-        qubit.power(qubit_power)
+    if (pi_pulse_amp is not None) or not rabi_uploaded:
         pi_pulse_amp = pi_pulse_amp or get_calibration_val('pi_pulse_amplitudes')
         rabi_seq = make_rabi_sequence(pi_pulse_amp, start=start_dur, stop=stop_dur, step=step_dur)
         set_up_sequence(awg, alazar, [acq_ctrl], rabi_seq, seq_mode=1)
     else:
         alazar.seq_mode(1)
+    qubit_power = qubit_power or get_calibration_val('pi_pulse_powers')
+    qubit.power(qubit_power)
     qubit.status('on')
     
     centre = freq_centre or get_calibration_val('actual_qubit_positions')
