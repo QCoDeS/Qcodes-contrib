@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from . import plot_data_single_window, plot_data, sweep1d, exp_decay, exp_decay_sin, \
     get_title, measure, save_fig, get_calibration_dict, get_calibration_val, set_calibration_val, \
-    make_ssb_qubit_seq, set_up_sequence
+    make_ssb_qubit_seq, check_sample_rate, make_save_send_load_awg_file
 # TODO: init decision for differentiating between vna functions and alazar
 #   functions
 # TODO: exception types
@@ -16,6 +16,47 @@ from . import plot_data_single_window, plot_data, sweep1d, exp_decay, exp_decay_
 # TODO: _ ?
 # TODO: Remove do_rabi_freq_sweep, do_rabi_pow_sweep
 # TODO: find qubit to compare to average
+
+def set_up_sequence(awg, alazar, acq_controllers, sequence, seq_mode=1):
+    """
+    Function which checks sample rate compatability between sequence and awg
+    setting, uploads sequence to awg, sets the alazar instrument to the
+    relevant sequence mode and sets the acquisition controller aquisiion
+    parameter to have setpoints based on the sequence variable.
+
+    Args:
+        awg instrument (AWG5014)
+        alazar instrument
+        acq_controllers list
+        sequence for upload
+        seq_mode (default 1)
+    """
+    check_sample_rate(awg)
+    make_save_send_load_awg_file(awg, sequence)
+    alazar.seq_mode(seq_mode)
+    record_num = len(sequence)
+    if seq_mode == 1:
+        for ctrl in acq_controllers:
+            try:
+                ctrl.records_per_buffer(record_num)
+                try:
+                    start = sequence.variable_array[0]
+                    stop = sequence.variable_array[-1]
+                except Exception:
+                    start = 0
+                    stop = len(sequence) - 1
+
+                ctrl.acquisition.set_base_setpoints(base_name=sequence.variable,
+                                                    base_label=sequence.variable_label,
+                                                    base_unit=sequence.variable_unit,
+                                                    setpoints_start=start,
+                                                    setpoints_stop=stop)
+            except NotImplementedError:
+                pass
+    alazar.seq_mode(seq_mode)
+    awg.all_channels_on()
+    awg.run()
+
 
 
 def config_alazar(alazar, seq_mode=0, clock_source='EXTERNAL_CLOCK_10MHz_REF'):
@@ -226,6 +267,37 @@ def do_cavity_freq_sweep(cavity, localos, cavity_freq, acq_ctrl,
                   'and run plots[i].save()')
         return data, plots
 
+def sweep_awg_amp(meas_param, awg_ch_1, awg_ch_2, chan_amp, start, stop, step,
+            delay=0.01, live_plot=True, key=None, save=True):
+    loop = qc.Loop(chan_amp.sweep(start, stop, step)).each(
+        qc.Task(awg_ch_1.set, chan_amp),
+        qc.Task(awg_ch_2.set, chan_amp),
+        meas_param)
+    if live_plot:
+        dataset = loop.get_data_set()
+        dataset.data_num = dataset.location_provider.counter
+        plot = plot_data_single_window(dataset, meas_param, key=key)
+        try:
+            if save:
+                _ = loop.with_bg_task(plot.update, plot.save).run()
+            else:
+                _ = loop.with_bg_task(plot.update).run()
+                print('warning: plots not saved, if you want to save this'
+                      'plot run plot.save()')
+        except KeyboardInterrupt:
+            print("Measurement Interrupted")
+        return dataset, plot
+    else:
+        data = loop.run()
+        data.data_num = data.location_provider.counter
+        plots = plot_data(data, key=key)
+        if (key is not None) and save:
+            plots.save()
+        else:
+            print('warning: plots not saved. To save one choose '
+                  'and run plots[i].save()')
+        return data, plots
+
 
 def calibrate_cavity(cavity, localos, acq_ctrl, alazar, centre_freq=None, demod_freq=None,
                      calib_update=True, cavity_power=-35, lo_power=15, live_plot=True):
@@ -241,7 +313,8 @@ def calibrate_cavity(cavity, localos, acq_ctrl, alazar, centre_freq=None, demod_
     data, plot = do_cavity_freq_sweep(cavity, localos, centre_freq, acq_ctrl,
                                        cavity_pm=3e6, freq_step=0.1e6, demod_freq=demod_freq,
                                     live_plot=True, key="mag", save=True)
-    good_cavity_freq = find_extreme(data, x_key="frequency_set", y_key="mag", extr="min")[0] + 3e5
+    cavity_res, mag = find_extreme(data, x_key="frequency_set", y_key="mag", extr="min")
+    good_cavity_freq = cavity_res + 3e5
     if calib_update:
         set_calibration_val('cavity_freqs', good_cavity_freq)
         set_calibration_val('cavity_pows', cavity_power)
@@ -249,7 +322,7 @@ def calibrate_cavity(cavity, localos, acq_ctrl, alazar, centre_freq=None, demod_
     set_single_demod_freq(cavity, localos, [acq_ctrl], demod_freq,
                           cav_freq=good_cavity_freq)
     alazar.seq_mode(alazar_mode)
-    print('cavity_freq set to {}'.format(good_cavity_freq))
+    print('cavity_freq set to {}, mag = '.format(good_cavity_freq, mag))
 
 
 def find_extreme(data, x_key="freq", y_key="mag", extr="min"):
@@ -339,6 +412,7 @@ def find_qubit(awg, alazar, acq_ctrl, qubit, start_freq=4e9, stop_freq=6e9, qubi
         set_up_sequence(awg1, alazar, [acq_ctrl], ssb_seq, seq_mode=1)
     else:
         alazar.seq_mode(1)
+    old_power = qubit.power()
     if qubit_power is None:
         qubit_power = get_calibration_val('spec_powers')
     qubit.status('on')
@@ -347,7 +421,7 @@ def find_qubit(awg, alazar, acq_ctrl, qubit, start_freq=4e9, stop_freq=6e9, qubi
     qubit_mag = 0
     for centre in np.linspace(start_freq+100e6, stop_freq-100e6, num=(stop_freq-start_freq)/200e6):
         ssb_centre = centre
-        data, pl = measure_ssb(qubit, acq_ctrl, ssb_centre, live_plot=True, key="mag")
+        data, pl = measure_ssb(qubit, acq_ctrl, ssb_centre, key="mag")
         freq, maximum = find_extreme(data, x_key="set", extr="max")
         if maximum > qubit_mag:
             qubit_freq = freq
@@ -355,6 +429,7 @@ def find_qubit(awg, alazar, acq_ctrl, qubit, start_freq=4e9, stop_freq=6e9, qubi
     if calib_update:
         set_calibration_val('actual_qubit_positions', qubit_freq)
         set_calibration_val('spec_powers', qubit_power)
+    qubit.power(old_power)
     print('qubit found at {}, mag {}'.format(qubit_freq, qubit_mag))
     return qubit_freq, qubit_mag
 
@@ -372,25 +447,40 @@ def find_qubit(awg, alazar, acq_ctrl, qubit, start_freq=4e9, stop_freq=6e9, qubi
     # qubit_freq = freq_data_array[qubit_freq_index]
     # return qubit_freq
 
+
 def do_rabis(awg, alazar, acq_ctrl, qubit, start_dur=0, stop_dur=200e-9, step_dur=1e-9,
-                       pi_pulse_amp=None, qubit_power=None, freq_centre=None, freq_span=20e6, freq_step=2e6, calib_update=True):
-    rabi_uploaded = 'drive_duration' in acq_ctrl.acquisition.setpoint_names[0][0]
-    if (pi_pulse_amp is not None) or not rabi_uploaded:
+            pi_pulse_amp=None, qubit_power=None, freq_centre=None, freq_pm=10e6, freq_step=2e6,
+            live_plot=True, calib_update=True, gaussian=False, pulse_sigmas_number=2, pulse_mod=False):
+    if gaussian:
+        rabis_uploaded = 'gaussian_drive_duration' is acq_ctrl.acquisition.setpoint_names[0][0]
+    else:
+        rabis_uploaded = 'drive_duration' is acq_ctrl.acquisition.setpoint_names[0][0]
+    if (pi_pulse_amp is not None) or not rabis_uploaded:
         pi_pulse_amp = pi_pulse_amp or get_calibration_val('pi_pulse_amplitudes')
-        rabi_seq = make_rabi_sequence(pi_pulse_amp, start=start_dur, stop=stop_dur, step=step_dur)
+        if gaussian:
+            rabi_seq = make_rabi_gaussian_sequence(pi_pulse_amp, pulse_sigmas_number, start=start_dur,
+                                                   stop=stop_dur, step=step_dur, pulse_mod=pulse_mod)
+        else:
+            rabi_seq = make_rabi_sequence(pi_pulse_amp, start=start_dur, stop=stop_dur, step=step_dur, pulse_mod=pulse_mod)
         set_up_sequence(awg, alazar, [acq_ctrl], rabi_seq, seq_mode=1)
     else:
         alazar.seq_mode(1)
+    old_power = qubit.power()
+    old_frequency = qubit.frequency()
     qubit_power = qubit_power or get_calibration_val('pi_pulse_powers')
     qubit.power(qubit_power)
     qubit.status('on')
     
     centre = freq_centre or get_calibration_val('actual_qubit_positions')
-    freq_start = centre - 20e6
-    freq_stop = centre + 20e6
+    freq_start = centre - freq_pm
+    freq_stop = centre + freq_pm
 
     data, plot = sweep1d(acq_ctrl.acquisition, qubit.frequency, freq_start, freq_stop, freq_step, 
-                          live_plot=True, key="mag", save=True)
+                          live_plot=live_plot, key="mag", save=True)
+
+    if calib_update:
+        set_calibration_val('pi_pulse_powers', qubit_power)
+    qubit.power(old_power)
 
 
 def find_cavity_val(acq_controller, cavity, localos, old_position=None,
@@ -452,7 +542,7 @@ def do_tracking_ssb_gate_sweep(qubit, cavity, localos, rec_acq_ctrl,
 #         return data, plots
 
 
-def measure_ssb(qubit, acq_ctrl, centre_freq, live_plot=True,
+def measure_ssb(qubit, acq_ctrl, centre_freq,
   key=None, save=True):
     qubit.frequency(centre_freq + 100e6)
     acq_ctrl.acquisition.set_base_setpoints(base_name='ssb_qubit_drive_freq',

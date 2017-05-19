@@ -144,3 +144,15 @@ def make_gaussian(sampling_rate, sigma, total_sigmas, amp):
     t = np.linspace(-1*total_sigmas*sigma, total_sigmas*sigma, num=(sampling_rate*total_sigmas*sigma)+1)
     y = amp * np.exp(-(t/(2*sigma))**2)
     return y
+
+
+def make_SSB_I_gaussian(sampling_rate, sigma, total_sigmas, amp, SSBfreq):
+    t = np.linspace(-1*total_sigmas*sigma, total_sigmas*sigma, num=(sampling_rate*total_sigmas*sigma)+1)
+    y = amp * np.exp(-(t/(2*sigma))**2)*np.cos(2*np.pi*SSBfreq*t)
+    return y 
+
+
+def make_SSB_Q_gaussian(sampling_rate, sigma, total_sigmas, amp, SSBfreq):
+    t = np.linspace(-1*total_sigmas*sigma, total_sigmas*sigma, num=(sampling_rate*total_sigmas*sigma)+1)
+    y = amp * np.exp(-(t/(2*sigma))**2)*np.sin(2*np.pi*SSBfreq*t)
+    return y

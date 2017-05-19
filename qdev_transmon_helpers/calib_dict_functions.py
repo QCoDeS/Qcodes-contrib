@@ -4,12 +4,12 @@ from . import get_analysis_location, g_from_qubit, get_qubit_count
 
 # TODO: make dict_keys better
 
-vna_dict_keys = ['expected_qubit_positions', 'g_values',
+vna_dict_keys = ['expected_qubit_freqs', 'g_values',
                  'resonances', 'resonator_pushes', 'gatability', 'gate_volts']
 alazar_dict_keys = ['current_qubit', 'int_times', 'int_delays', 'cavity_freqs',
-                    'cavity_pows', 'demod_freqs', 'pi_pulse_amplitudes', 't1s',
-                    't1_errors', 't2s', 't2_errrors', 'actual_qubit_positions',
-                    'pi_pulse_durations', 'pi_pulse_powers', 'spec_powers']
+                    'cavity_pows', 'demod_freqs', 'pi_pulse_amplitudes', 'qubit_freqs',
+                    'pi_pulse_durations', 'pi_pulse_powers', 'spec_powers',
+                    'pi_pulse_sigmacutoff', 'spec_awg_amps', 'pi_pulse_awg_amps']
 
 
 def get_calibration_dict():
