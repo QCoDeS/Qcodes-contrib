@@ -476,7 +476,7 @@ def load(counter, plot=True, metadata=True, matplot=False):
 
     if metadata:
         get_metadata(data, display=True)
-        get_data_duration(data)
+        # get_data_duration(data)
     if plot:
         plots = plot_data(data, matplot=matplot)
         return data, plots
