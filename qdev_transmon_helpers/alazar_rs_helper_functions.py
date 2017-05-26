@@ -185,6 +185,8 @@ def set_single_demod_freq(cavity, localos, acq_ctrls, demod_freq,
         demod freq (float) to be set
         cav freq (optional float) freq to set cavity to
     """
+    cavity.status('on')
+    localos.status('on')
     if cav_freq is not None:
         cavity.frequency(cav_freq)
     else:
