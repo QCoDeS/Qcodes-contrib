@@ -127,8 +127,9 @@ def measure(meas_param, plot=True, key=None, save=True):
 
     Args:
         meas_param: parameter which we want the value of at each point
-        plot (default True): live plot not possible but will plot the meas_param
-            attributes in seperate windows and return them if this is True
+        plot (default True): live plot not possible but will plot the
+            meas_param attributes in seperate windows and return them
+            if this is True
         key (default None): string specifying specific parameter array to be
             plotted, default is to plot all
         save (default True): whether to save png on completion

@@ -1,8 +1,8 @@
-import pickle
 import numpy as np
-import pprint
 import matplotlib.pyplot as plt
-from . import get_pulse_location, get_latest_counter, make_gaussian, make_SSB_I_gaussian, make_SSB_Q_gaussian
+from . import get_pulse_dict, get_latest_counter, make_gaussian, \
+    make_SSB_I_gaussian, make_SSB_Q_gaussian, validate_pulse_dictionary, \
+    get_pulse_val, get_pulse_location
 
 from . import Sequence, Waveform, Element
 
@@ -12,94 +12,7 @@ from . import Sequence, Waveform, Element
 # TODO: plot sequence -> plot variable channel count
 # TODO: make_save_send_load_awg_file -> not doing same thing twice!
 # TODO: allxy clean up
-
-
-default_pulse_dict = {'cycle_duration': 20e-6, 'sample_rate': 1e9,
-                      'pulse_end': 10e-6, 'pulse_readout_delay': 30e-9,
-                      'readout_time': 4e-6, 'marker_time': 500e-9,
-                      'marker_readout_delay': 0, 'qubit_time': 1e-6}
-
-
-def validate_pulse_dictionary():
-    """
-    Function which checks that the pulse dictionary contains the
-    keys specified in the default list.
-    """
-    p_dict = get_pulse_dict()
-    missing_keys = []
-    for k in default_pulse_dict:
-        if k not in p_dict:
-            missing_keys.append(k)
-    for k in missing_keys:
-        p_dict[k] = default_pulse_dict[k]
-    update_pulse_dict(p_dict)
-    if missing_keys:
-        print('{} added to pulse_dictionary'.format(missing_keys))
-    print('pulse config:')
-    pprint.pprint(p_dict, width=1)
-
-
-def get_pulse_dict():
-    """
-    Gets the pulse dictionary stored as 'pulse_dict.p' in
-    pulse location file or makes an empty one if none found.
-
-    Returns:
-        pulse dictionary
-    """
-    path = get_pulse_location()
-    file_name = 'pulse_dict.p'
-    try:
-        pulse_dict = pickle.load(open(path + file_name, "rb"))
-    except FileNotFoundError:
-        print('pulse_dict not found, making one from default values')
-        pulse_dict = default_pulse_dict
-        pickle.dump(pulse_dict, open(path + file_name, 'wb'))
-        pprint.pprint(pulse_dict, width=1)
-    return pulse_dict
-
-
-def update_pulse_dict(update_dict):
-    """
-    Updates the pulse dictionary 'pulse_dict.p' in
-    pulse location file with given dict.
-
-    Args:
-        update_dict (dictionary)
-    """
-    path = get_pulse_location()
-    file_name = 'pulse_dict.p'
-    dict_to_update = get_pulse_dict()
-    dict_to_update.update(update_dict)
-    pickle.dump(dict_to_update, open(path + file_name, 'wb'))
-
-
-def update_pulse_val(key, val):
-    """
-    Sets a value in the pulse dictionary 'pulse_dict.p' in
-    pulse location file.
-
-    Args:
-        key, val
-    """
-    p_dict = get_pulse_dict()
-    p_dict[key] = val
-    update_pulse_dict(p_dict)
-
-
-def get_pulse_val(key):
-    """
-    Gets a value from the pulse dictionary 'pulse_dict.p' in
-    pulse location file.
-
-    Args:
-        key
-
-    Returns:
-        val
-    """
-    p_dict = get_pulse_dict()
-    return p_dict[key]
+# TODOL docstrings
 
 
 def make_readout_seq(channels=[4]):
@@ -546,8 +459,10 @@ def make_floquet_amp_sequence(floquet_dur, floquet_freq, start, stop, step,
     amplitude_floquet_sequence.check()
     return amplitude_floquet_sequence
 
-def make_rabi_gaussian_sequence(pi_amp, pulse_sigmas_number, start=0, stop=200e-9, step=2e-9,
-                       channels=[1, 4], pulse_mod=False):
+
+def make_rabi_gaussian_sequence(pi_amp, pulse_sigmas_number, start=0,
+                                stop=200e-9, step=2e-9,
+                                channels=[1, 4], pulse_mod=False):
     """
     Square qubit drive of pi amplitude of varying duration, square readout
     drive. Markers on readout channel (1 for readout start, 2 for seq start)
@@ -572,7 +487,8 @@ def make_rabi_gaussian_sequence(pi_amp, pulse_sigmas_number, start=0, stop=200e-
     marker_points = round(p_dict['marker_time'] / resolution)
     total_points = round(p_dict['cycle_duration'] / resolution)
 
-    pulse_mod_points = int(2 * pulse_sigmas_number * (stop-start)/resolution)
+    pulse_mod_points = int(2 * pulse_sigmas_number *
+                           (stop - start) / resolution)
 
     readout_template = Waveform(length=total_points, channel=channels[1])
 
@@ -582,7 +498,8 @@ def make_rabi_gaussian_sequence(pi_amp, pulse_sigmas_number, start=0, stop=200e-
         readout_marker_start_points:readout_marker_start_points + marker_points] = 1
 
     for i, pi_duration in enumerate(rabi_sequence.variable_array):
-        pi_pulse = make_gaussian(p_dict['sample_rate'], pi_duration, pulse_sigmas_number, pi_amp)
+        pi_pulse = make_gaussian(p_dict['sample_rate'], pi_duration,
+                                 pulse_sigmas_number, pi_amp)
         element = Element()
         qubit_waveform = Waveform(length=total_points, channel=channels[0])
         readout_waveform = readout_template.copy()
@@ -592,7 +509,7 @@ def make_rabi_gaussian_sequence(pi_amp, pulse_sigmas_number, start=0, stop=200e-
         qubit_end = int(pulse_end_points)
         qubit_waveform.wave[qubit_start:qubit_end] = pi_pulse
         if pulse_mod:
-            qubit_waveform.marker_1[pulse_end_points-pulse_mod_points:pulse_end_points] = 1
+            qubit_waveform.marker_1[pulse_end_points - pulse_mod_points:pulse_end_points] = 1
         element.add_waveform(qubit_waveform)
         element.add_waveform(readout_waveform)
         rabi_sequence.add_element(element)
@@ -659,6 +576,7 @@ def make_rabi_gaussianSSB_sequence(pi_amp, pulse_sigmas_number, start=0, stop=20
     rabi_sequence.check()
 
     return rabi_sequence
+
 
 def make_allxy_seq(pi_duration, total_sigmas, channels=[1,2,4], pulse_mod=False):
     """
@@ -942,6 +860,7 @@ def make_allxy_seq(pi_duration, total_sigmas, channels=[1,2,4], pulse_mod=False)
     seq.add_element(elem_20)
 
     return seq
+
 
 def make_allxySSB_seq(pi_duration, pi_amp, SSBfreq, total_sigmas, channels=[1,2,4], pulse_mod=False):
     """
@@ -1267,7 +1186,6 @@ def make_allxySSB_seq(pi_duration, pi_amp, SSBfreq, total_sigmas, channels=[1,2,
     seq.add_element(elem_20)
 
     return seq
-
 
 
 def plot_sequence(sequence, elemnum=0, channels=[1, 2]):
