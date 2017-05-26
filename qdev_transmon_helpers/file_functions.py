@@ -6,10 +6,13 @@ import matplotlib.pyplot as plt
 from time import localtime, strftime
 import logging
 from IPython import get_ipython
+from os.path import abspath
+from os.path import sep
 from collections import defaultdict
 from functools import reduce
 import operator
 from dateutil import parser
+import warnings
 
 EXPERIMENT_VARS = {'analysis_loc': False,
                    'data_loc_fmt': False,
@@ -203,12 +206,14 @@ def set_log_locations():
     file, starts jupyter log. Sets python_log_loc and jupyter_log_loc
     in EXPERIMENT_VARS dictionary to True.
     """
+    warnings.simplefilter('error', UserWarning)
+
     sample_name = get_sample_name()
     try:
-        log_location = qc.config.user.log_location.format(
-            sample_name=sample_name)
-        python_log_location = log_location + 'python_logs/'
-        jupyter_log_location = log_location + 'jupyter_logs/'
+        log_location = abspath(qc.config.user.log_location.format(
+            sample_name=sample_name))
+        python_log_location = sep.join([log_location, 'python_logs', ""])
+        jupyter_log_location = sep.join([log_location, 'jupyter_logs', ""])
     except KeyError:
         raise KeyError('log_location not set in config, see '
                        '"https://github.com/QCoDeS/Qcodes/blob/master'
@@ -219,11 +224,11 @@ def set_log_locations():
     else:
         if not os.path.exists(python_log_location):
             os.makedirs(python_log_location)
-        python_logfile_name = str(python_log_location +
-                                  strftime('%Y-%m-%d_%H-%M', localtime()) +
+        python_logfile_name = "{}{}{}".format(python_log_location,
+                                  strftime('%Y-%m-%d_%H-%M-%S', localtime()),
                                   '_pythonlogfile.log')
         logging.basicConfig(filename=python_logfile_name,
-                            level=logging.DEBUG,
+                            level=logging.INFO,
                             format='%(asctime)s %(levelname)s %(message)s',
                             datefmt='%Y-%m-%d_%H-%M-%S')
         EXPERIMENT_VARS['python_log_loc'] = True
@@ -237,15 +242,21 @@ def set_log_locations():
         if in_ipynb():
             if not os.path.exists(jupyter_log_location):
                 os.makedirs(jupyter_log_location)
-            jupyter_logfile_name = str(jupyter_log_location +
-                                       strftime('%Y-%m-%d_%H-%M',
-                                                localtime()) +
+            jupyter_logfile_name = "{}{}{}".format(jupyter_log_location,
+                                       strftime('%Y-%m-%d_%H-%M-%S',
+                                                localtime()),
                                        '_ipythonlogfile.txt')
-            get_ipython().magic("logstart -t %s" % jupyter_logfile_name)
-            EXPERIMENT_VARS['jupyter_log_loc'] = True
-            print('Set up jupyter log location: {}'.format(
+            try:
+                get_ipython().magic("logstart -t {} append".format(jupyter_logfile_name))
+                EXPERIMENT_VARS['jupyter_log_loc'] = True
+                print('Set up jupyter log location: {}'.format(
                 jupyter_log_location))
-            print('-------------------------')
+                print('-------------------------')
+            except Warning as w:
+                print('Could not set up jupyter log: ', w)
+                print('-------------------------')
+            
+            
 
 
 def get_log_locations():
@@ -259,12 +270,12 @@ def get_log_locations():
             EXPERIMENT_VARS['jupyter_log_loc']):
         logs = {}
         sample_name = EXPERIMENT_VARS['sample_name']
-        log_location = qc.config.user.log_location.format(
-            sample_name=sample_name)
+        log_location = abspath(qc.config.user.log_location.format(
+            sample_name=sample_name))
         if EXPERIMENT_VARS['python_log_loc']:
-            logs['python_log'] = log_location + 'python_logs/'
+            logs['python_log'] = sep.join([log_location, 'python_logs', ""])
         if EXPERIMENT_VARS['jupyter_log_loc']:
-            logs['jupyter_log'] = log_location + 'jupyter_logs/'
+            logs['jupyter_log'] = sep.join([log_location, 'jupyter_logs', ""])
         return logs
     else:
         raise Exception('no logs set, please run set_log_locations to start'

@@ -7,11 +7,6 @@ Motivation
 ------
 The basic motivation is to provide the layer between QCoDeS and the experimentalist so that the UI is useable and not getting in the way, this includes things like standardising logging procedure, datasaving procedure and the folder structure of an experiment. It also includes wrappers to make loading in data or recognising which analysis plot came from which dataset easier. Totally unfinished.
 
-Prerequisites
--------------
-- a working version of QCoDeS https://github.com/QCoDeS/Qcodes
-- the config settings for data_location, analysis_location, log_location and pulse_location set in your local config (see https://github.com/QCoDeS/Qcodes/blob/master/docs/examples/Configuring_QCoDeS.ipynb)
-
 
 Modules
 -------
