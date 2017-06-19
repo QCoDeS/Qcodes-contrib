@@ -17,7 +17,6 @@ EXPERIMENT_VARS = {'analysis_loc': False,
 
 
 # TODO: either get 'file format' to behave as wanted or remove freedom
-# TODO: docstrings
 
 
 def in_ipynb():
@@ -53,7 +52,7 @@ def get_qubit_count():
     try:
         return EXPERIMENT_VARS['qubit_count']
     except KeyError:
-        raise KeyError('qubit_count not set, please call qubit_count')
+        raise KeyError('qubit_count not set, please call set_qubit_count')
 
 
 def set_sample_name(name):
@@ -363,6 +362,7 @@ def set_file_locations():
     set_data_location()
     set_analysis_location()
     set_pulse_location()
+    set_temp_dict_location()
 
 
 def get_latest_counter(path=None):

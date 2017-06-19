@@ -5,21 +5,22 @@ from . import plot_data_single_window, plot_data, sweep1d, measure, \
 # TODO: exception types
 # TODO: TWPA settings
 # TODO: _ ?
-# TODO: docstrings
+# TODO: write set_demod_freqs
 
 
-def config_alazar(alazar, seq_mode=0, clock_source='EXTERNAL_CLOCK_10MHz_REF'):
+def config_alazar(alazar, seq_mode='off',
+                  clock_source='EXTERNAL_CLOCK_10MHz_REF'):
     """
     Function which puts alazar in sequency mode, configures and sets clock
     source
 
     Args:
         alazar instrument
-        seq mode (0 or 1) (default 0)
+        seq mode ('on' or 'off') (default 'off')
         clock_source (default 'EXTERNAL_CLOCK_10MHz_REF')
     """
-    if seq_mode not in [0, 1]:
-        raise ValueError('must set seq mode to 0 or 1')
+    if seq_mode not in ['on', 'off']:
+        raise ValueError('must set seq mode to "on" or "off"')
     if seq_mode:
         io_mode = 'AUX_IN_TRIGGER_ENABLE'
         io_param = 'TRIG_SLOPE_POSITIVE'
@@ -63,10 +64,10 @@ def get_alazar_seq_mode(alazar):
     """
     if (alazar.aux_io_mode() is 'AUX_IN_TRIGGER_ENABLE' and
             alazar.aux_io_param() is 'TRIG_SLOPE_POSITIVE'):
-        return 1
+        return 'on'
     elif (alazar.aux_io_mode() is 'AUX_IN_AUXILIARY' and
           alazar.aux_io_param() is 'NONE'):
-        return 0
+        return 'off'
     else:
         raise ValueError('aux_io_mode: {}, aux_io_param: {} '
                          'do not correspond to seq_mode on or off')
@@ -78,22 +79,22 @@ def set_alazar_seq_mode(alazar, mode):
 
     Args:
         alazar instrument
-        mode (0 or 1)
+        mode ('off' or 'on')
     """
-    if mode == 1:
+    if mode is 'on':
         alazar.config(sample_rate=alazar.sample_rate(),
                       clock_edge=alazar.clock_edge(),
                       clock_source=alazar.clock_source(),
                       aux_io_mode='AUX_IN_TRIGGER_ENABLE',
                       aux_io_param='TRIG_SLOPE_POSITIVE')
-    elif mode == 0:
+    elif mode is 'off':
         alazar.config(sample_rate=alazar.sample_rate(),
                       clock_edge=alazar.clock_edge(),
                       clock_source=alazar.clock_source(),
                       aux_io_mode='AUX_IN_AUXILIARY',
                       aux_io_param='NONE')
     else:
-        raise ValueError('must set seq mode to 0 or 1')
+        raise ValueError('must set seq mode to "on" or "off"')
 
 
 def get_demod_freq(cavity, localos, acq_ctrl):
@@ -153,7 +154,7 @@ def set_demod_freqs(cavity, localos, aqc_ctrls, demod_freqs,
 
 def remove_demod_freqs(acq_ctrl):
     """
-    Strips demod freqs from acquisition controller
+    Function whish removes demod freqs from acquisition controller
 
     Args:
         acq_ctrl (alazar acq controller)
@@ -188,7 +189,8 @@ def do_cavity_freq_sweep(cavity, localos, cavity_freq, acq_ctrl,
             multiple values then unless you specify a specific one to plot
             via 'key' then none will be saved.
 
-    Args
+    Returns:
+        data, plot(s)
     """
     if demod_freq is None:
         demod_freq = get_demod_freq(cavity, localos, acq_ctrl)
@@ -225,25 +227,60 @@ def do_cavity_freq_sweep(cavity, localos, cavity_freq, acq_ctrl,
 
 
 def set_cavity_from_calib_dict(cavity, localos, acq_ctrls, num_avg=1000):
+    """
+    Funtion which sets the cavity, local oscillator and the acq controllers to
+    have correct demodulation settings for single qubit readout as well as
+    averaging settings and int_time, int_delay and cavity power, localos_power
+
+    Args:
+        cavity (R&S instrument)
+        localos (R&S instrument)
+        acq_ctrls (list of alazar acq controller instruments)
+        num_avg (int): num of averages for acq controller
+    """
     for acq_ctrl in acq_ctrls:
-        acq_ctrl.int_time(get_calibration_val('int_times'))
-        acq_ctrl.int_delay(get_calibration_val('int_delays'))
+        acq_ctrl.int_time(get_calibration_val('int_time'))
+        acq_ctrl.int_delay(get_calibration_val('int_delay'))
         acq_ctrl.num_avg(num_avg)
-    cavity.power(get_calibration_val('cavity_pows'))
+    cavity.power(get_calibration_val('cavity_pow'))
+    localos.power(get_calibration_val('localos_pow'))
     set_single_demod_freq(cavity, localos, acq_ctrls,
-                          get_calibration_val('demod_freqs'),
-                          cav_freq=get_calibration_val('cavity_freqs'))
+                          get_calibration_val('demod_freq'),
+                          cav_freq=get_calibration_val('cavity_freq'))
 
 
 def sweep_2d_ssb(qubit, acq_ctrl, centre_freq, sweep_param,
                  start, stop, step, delay=0.01, live_plot=True,
                  key=None, save=True):
+    """
+    Function which sets up a ssb spectroscopy 'hardware controlled sweep'
+    +-100MHz around cenre_freq on one axis and sweeps another parameter on
+    the other axis. Assumes correct awg upload. Produces a 2d plot.
+
+    Args:
+        qubit (R&S instrument)
+        acq_ctrls(alazar acq controller instrument)
+        centre_freq (float): freq to centre ssb spectoscopy around
+        sweep_param (qcodes parameter): param top sweep on y axis
+        start: start value for sweep_param
+        stop: stop value for sweep param
+        step: step value for sweep param
+        delay (default 0.01): delay value beween step of sweep param
+        live_plot (bool) (default True)
+        key (string) (default None): string key used to search for data
+            array to plot and save (otherwise plots all)
+        save (bool) (default True): whether to save png
+
+    Returns:
+        sweep1d result
+    """
     qubit.frequency(centre_freq + 100e6)
-    acq_ctrl.acquisition.set_base_setpoints(base_name='ssb_qubit_drive_freq',
-                                            base_label='Qubit Drive Frequency',
-                                            base_unit='Hz',
-                                            setpoints_start=centre_freq + 100e6,
-                                            setpoints_stop=centre_freq - 100e6)
+    acq_ctrl.acquisition.set_base_setpoints(
+        base_name='ssb_qubit_drive_freq',
+        base_label='Qubit Drive Frequency',
+        base_unit='Hz',
+        setpoints_start=centre_freq + 100e6,
+        setpoints_stop=centre_freq - 100e6)
     return sweep1d(acq_ctrl.acquisition, sweep_param, start,
                    stop, step, delay=delay, live_plot=live_plot,
                    key=key, save=save)
@@ -251,10 +288,28 @@ def sweep_2d_ssb(qubit, acq_ctrl, centre_freq, sweep_param,
 
 def measure_ssb(qubit, acq_ctrl, centre_freq,
                 key=None, save=True):
+    """
+    Function which does a 'hardware controlled sweep' for single sideband
+    spectroscopy uploaded to the awg +-100MHz around the centre_freq.
+    Produces a 3d plot.
+
+    Args:
+        qubit (R&S instrument)
+        acq_ctrls(alazar acq controller instrument)
+        centre_freq (float): freq to centre ssb spectoscopy around
+        live_plot (bool) (default True)
+        key (string) (default None): string key used to search for data
+            array to plot and save (otherwise plots all)
+        save (bool) (default True): whether to save png
+
+    Returns:
+        measure result
+    """
     qubit.frequency(centre_freq + 100e6)
-    acq_ctrl.acquisition.set_base_setpoints(base_name='ssb_qubit_drive_freq',
-                                            base_label='Qubit Drive Frequency',
-                                            base_unit='Hz',
-                                            setpoints_start=centre_freq + 100e6,
-                                            setpoints_stop=centre_freq - 100e6)
+    acq_ctrl.acquisition.set_base_setpoints(
+        base_name='ssb_qubit_drive_freq',
+        base_label='Qubit Drive Frequency',
+        base_unit='Hz',
+        setpoints_start=centre_freq + 100e6,
+        setpoints_stop=centre_freq - 100e6)
     return measure(acq_ctrl.acquisition, key=key, save=save)

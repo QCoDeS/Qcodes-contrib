@@ -1,39 +1,44 @@
-from collections import defaultdict
-from functools import reduce
-import operator
 import pprint
 
 from . import get_temp_dict_location
 
 import pickle
 import numpy as np
-import FileNotFoundError
 from . import get_qubit_count
 
-# TODO: make dict_keys better
-# docstrings
 
-
-def validate_temp_dicts():
-    validate_calibration_dictionary()
-    validate_metadata_dictionary()
+def validate_temp_dicts(calib=True, metadata=True, pulse=True):
+    """
+    Function which calls the vlidation functions for the temporary
+    dictionaries and lists
+    """
+    if calib:
+        validate_calibration_dictionary()
+    if metadata:
+        validate_metadata_list()
+    if pulse:
+        validate_pulse_dictionary()
 
 
 ################################
 # Calibration Dictionary
 ################################
-vna_dict_keys = ['expected_qubit_freqs', 'g_values',
-                 'resonances', 'resonator_pushes', 'gatability', 'gate_volts']
-alazar_dict_keys = ['current_qubit', 'int_times', 'int_delays', 'cavity_freqs',
-                    'cavity_pows', 'demod_freqs', 'pi_pulse_amplitudes',
-                    'qubit_freqs', 'pi_pulse_durations', 'pi_pulse_powers',
-                    'spec_powers', 'pi_pulse_sigma_cutoff', 'spec_awg_amps',
-                    'pi_pulse_awg_amps']
+
+
+vna_dict_keys = ['expected_qubit_freq', 'g_value', 'bare_res_freq',
+                 'pushed_res_freq', 'gate_volt']
+
+alazar_dict_keys = ['current_qubit', 'int_time', 'int_delay', 'cavity_freq',
+                    'cavity_pow', 'localos_pow', 'demod_freq', 'pi_pulse_amp',
+                    'pi_half_pulse_amp', 'qubit_freq', 'pi_pulse_dur',
+                    'pi_pulse_pow', 'spec_pow', 'pi_pulse_sigma_cutoff']
 
 
 def get_calibration_dict():
     """
-    Function which gets the calibration_dict.p saved in get_analysis_location()
+    Function which gets the calibration_dict.p saved in
+    get_temp_dict_location()
+
     Returns:
         calibration_dict
     """
@@ -51,7 +56,7 @@ def get_calibration_dict():
 def update_calibration_dict(update_dict):
     """
     Function which updates (or creates) a pickled python dictionary saved
-    in the same folder as from get_analysis_location() called
+    in the same folder as from get_temp_dict_location() called
     calibration_dict.p
 
     Args:
@@ -176,14 +181,6 @@ def validate_calibration_dictionary(vna=True, alazar=True):
 #########################################
 
 
-def getFromDict(dataDict, mapList):
-    """
-    Basic helper function which given a mapList (list) as a path gets the value
-    from dataDict (nested dictionary structure)
-    """
-    return reduce(operator.getitem, mapList, dataDict)
-
-
 def get_metadata_list():
     path = get_temp_dict_location()
     file_name = 'metadata_list.p'
@@ -199,55 +196,80 @@ def get_metadata_list():
 def add_to_metadata_list(*args):
     """
     Args:
-        qcodes parameters to be added to EXPERIMENT_VARS['metadata_list']
+        qcodes parameters to be added to metadata_list.p
         which flags them as parameters of interest. The values of these are
         printed when a dataset is loaded.
     """
     metadata_list = get_metadata_list()
     for param in args:
-        inst_param_list = [param._instrument.name, param.name]
-        if inst_param_list not in metadata_list:
-            metadata_list.append(inst_param_list)
+        inst_param_tuple = (param._instrument.name, param.name)
+        if inst_param_tuple not in metadata_list:
+            metadata_list.append(inst_param_tuple)
     set_metadata_list(metadata_list)
 
 
 def add_to_metadata_list_manual(instr_name, param_name):
+    """
+    Args:
+        intr_name (str): name of instrument which param belongs to
+        param_name (str): name of param
+    """
     metadata_list = get_metadata_list()
-    inst_param_list = [instr_name, param_name]
-    if inst_param_list not in metadata_list:
-        metadata_list.append(inst_param_list)
+    inst_param_tuple = (instr_name, param_name)
+    if inst_param_tuple not in metadata_list:
+        metadata_list.append(inst_param_tuple)
     set_metadata_list(metadata_list)
 
 
 def set_metadata_list(updated_list):
+    """
+    Finction which created 'metadata_list.p' in get_temp_dict_location
+    and dumps picled list there (overwrites and existing list)
+
+    Args:
+        list to write
+    """
     path = get_temp_dict_location()
     file_name = 'metadata_list.p'
     pickle.dump(updated_list, open(path + file_name, 'wb'))
 
 
 def remove_from_metadata_list(*args):
+    """
+    Function which removes the instr_param_tuples from the matadata_list.p
+    if present
+
+    Args:
+        qcodes parameters
+    """
     metadata_list = get_metadata_list()
     for param in args:
-        inst_param_list = [param._instrument.name, param.name]
-    if inst_param_list in metadata_list:
-        metadata_list.remove(inst_param_list)
+        inst_param_tuple = (param._instrument.name, param.name)
+    if inst_param_tuple in metadata_list:
+        metadata_list.remove(inst_param_tuple)
     set_metadata_list(metadata_list)
 
 
-def print_metadata(meta_dict):
+def remove_from_metadata_list_manual(instr_name, param_name):
     """
-    Function which given a metadata dictionary generated by get_metadata
-    prints it.
+    Function which removes the instr_param_tuple from the matadata_list.p
+    if present
+
+    Args:
+        intr_name (str): name of instrument which param belongs to
+        param_name (str): name of param
     """
-    for instr in meta_dict:
-        print(instr)
-        for param in meta_dict[instr]:
-            print('\t{} : {} {}'.format(param,
-                                        meta_dict[instr][param]['value'],
-                                        meta_dict[instr][param]['unit']))
+    metadata_list = get_metadata_list()
+    inst_param_tuple = (instr_name, param_name)
+    if inst_param_tuple in metadata_list:
+        metadata_list.remove(inst_param_tuple)
+    set_metadata_list(metadata_list)
 
 
-def validate_metadata_dictionary():
+def validate_metadata_list():
+    """
+    Function which checks if metadata_list is empty
+    """
     c_dict = get_metadata_list()
     if c_dict is []:
         print('Metadata list is empty')

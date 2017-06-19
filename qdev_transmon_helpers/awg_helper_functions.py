@@ -6,14 +6,86 @@ from . import get_pulse_dict, get_latest_counter, make_gaussian, \
 
 from . import Sequence, Waveform, Element
 
-# TODO: gaussian
 # TODO: rount -> int/ciel
 # TODO: test segments
-# TODO: plot sequence -> plot variable channel count
 # TODO: make_save_send_load_awg_file -> not doing same thing twice!
 # TODO: allxy clean up
 # TODOL docstrings
+# TODO: T2 echo
 
+#################################################################
+# General AWG and Sequence functions
+#################################################################
+
+
+def plot_sequence(sequence, elemnum=0, channels=[1, 2]):
+    """
+    Function which plots channels and markers
+
+    Args:
+        sequence to plot
+        elemnum to plot (default 0)
+        channels (list of channel ints) (default [1, 2]) to plot
+
+    Returns:
+        matplotlib fig
+    """
+    fig = plt.figure()
+    plt_count = len(channels) * 2
+    for i, chan in enumerate(channels):
+        index_a = (plt_count * 100) + 10 + (2 * i) + 1
+        index_b = index_a + 1
+        ax_w = fig.add_subplot(index_a)
+        ax_w.set_title('Channel {} waveform'.format(chan))
+        ax_w.set_ylim([-1.1, 1.1])
+        ax_m = fig.add_subplot(index_b)
+        ax_m.set_title('Channel {} markers'.format(chan))
+        ax_m.set_ylim([-0.1, 1.1])
+        ax_w.plot(sequence[elemnum][chan].wave, lw=1, color='#009FFF')
+        ax_m.plot(sequence[elemnum][chan].marker_1, lw=1,
+                  color='#008B45', alpha=0.6, label='m1')
+        ax_m.plot(sequence[elemnum][chan].marker_2, lw=1,
+                  color='#FE6447', alpha=0.6, label='m2')
+        ax_m.legend(loc='upper right', fontsize=10)
+    plt.tight_layout()
+    return fig
+
+
+def make_save_send_load_awg_file(awg, sequence):
+    """
+    WYSIYWYG
+
+    Args:
+        awg instrument for upload
+        sequence to be uploaded
+    """
+    pulse_location = get_pulse_location()
+    try:
+        num = get_latest_counter(pulse_location) + 1
+    except (FileNotFoundError, OSError):
+        num = 1
+    name = '{0:03d}_{name}.awg'.format(num, name=sequence.name)
+    file_location = pulse_location + name
+    awg.make_and_save_awg_file(*sequence.unwrap(), filename=file_location)
+    awg.make_send_and_load_awg_file(*sequence.unwrap())
+
+
+def check_sample_rate(awg):
+    """
+    Checks sample rate in pulse dict against that on awg
+
+    Args:
+        awg instrument for checking
+    """
+    sr = get_pulse_val('sample_rate')
+    if sr != awg.clock_freq():
+        awg.clock_freq(sr)
+    print('awg clock freq set to {}'.format(sr))
+
+
+#######################################
+# Basic testing/debugging sequences
+#######################################
 
 def make_readout_seq(channels=[4]):
     """
@@ -67,8 +139,13 @@ def make_full_ssb_wave(freq=8e6, duration=20e-6, channels=[1, 2]):
     seq.check()
     return seq
 
+#############################################################
+# Spectroscopy Sequences
+#############################################################
 
-def make_ssb_qubit_seq(start=0, stop=200e6, step=1e6, channels=[1, 2, 4]):
+
+def make_ssb_qubit_seq(start=0, stop=200e6, step=1e6, channels=[1, 2, 4],
+                       pulse_mod=False):
     """
     Cosine and sine waves for qubit time with range of frequencies, square
     readout wave for readout time. Markers on readout channel (1 for readout
@@ -102,6 +179,7 @@ def make_ssb_qubit_seq(start=0, stop=200e6, step=1e6, channels=[1, 2, 4]):
 
     qubit_time_array = np.arange(qubit_points) * resolution
     freq_array = ssb_sequence.variable_array
+    pulse_mod_points = qubit_points * 2
 
     for i, freq in enumerate(freq_array):
         element = Element()
@@ -117,6 +195,11 @@ def make_ssb_qubit_seq(start=0, stop=200e6, step=1e6, channels=[1, 2, 4]):
         sin_array = np.sin(angle)
         qubit_i.wave[qubit_start:qubit_end] = cos_array
         qubit_q.wave[qubit_start:qubit_end] = -1 * sin_array
+        if pulse_mod:
+            qubit_i.marker_1[
+                pulse_end_points - pulse_mod_points:pulse_end_points] = 1
+            qubit_q.marker_1[
+                pulse_end_points - pulse_mod_points:pulse_end_points] = 1
         element.add_waveform(qubit_i)
         element.add_waveform(qubit_q)
         element.add_waveform(readout_waveform)
@@ -124,9 +207,197 @@ def make_ssb_qubit_seq(start=0, stop=200e6, step=1e6, channels=[1, 2, 4]):
     ssb_sequence.check()
     return ssb_sequence
 
+#######################################################################
+# Rabi and T1 Sequences
+#######################################################################
 
-def make_t1_seq(pi_duration, pi_amp, start=0, stop=5e-6, step=50e-9,
-                channels=[1, 4]):
+
+def make_rabi_square_sequence(pi_amp=1, start=0, stop=200e-9, step=2e-9,
+                              channels=[1, 4], pulse_mod=False):
+    """
+    Square qubit drive of pi amplitude of varying duration, square readout
+    drive. Markers on readout channel (1 for readout start, 2 for seq start)
+    """
+    validate_pulse_dictionary()
+    rabi_sequence = Sequence(name='rabi',
+                             variable='drive_duration',
+                             variable_label='Drive Duration',
+                             variable_unit='s',
+                             step=step,
+                             start=start,
+                             stop=stop)
+
+    p_dict = get_pulse_dict()
+    resolution = 1 / p_dict['sample_rate']
+    readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
+    readout_marker_start = readout_start - p_dict['marker_readout_delay']
+    readout_start_points = round(readout_start / resolution)
+    readout_marker_start_points = round(readout_marker_start / resolution)
+    readout_points = round(p_dict['readout_time'] / resolution)
+    pulse_end_points = round(p_dict['pulse_end'] / resolution)
+    marker_points = round(p_dict['marker_time'] / resolution)
+    total_points = round(p_dict['cycle_duration'] / resolution)
+
+    pulse_mod_points = int(stop * 2 / resolution)
+
+    readout_template = Waveform(length=total_points, channel=channels[1])
+
+    readout_template.wave[
+        readout_start_points:readout_start_points + readout_points] = 1
+    readout_template.marker_1[
+        readout_marker_start_points:readout_marker_start_points + marker_points] = 1
+
+    qubit_duration_array_points = np.round(
+        rabi_sequence.variable_array / resolution).astype(int)
+
+    for i, qubit_points in enumerate(qubit_duration_array_points):
+        element = Element()
+        qubit_waveform = Waveform(length=total_points, channel=channels[0])
+        readout_waveform = readout_template.copy()
+        if i == 0:
+            readout_waveform.marker_2[10:10 + marker_points] = 1
+        qubit_start = int(pulse_end_points - qubit_points)
+        qubit_end = int(pulse_end_points)
+        qubit_waveform.wave[qubit_start:qubit_end] = pi_amp
+        if pulse_mod:
+            qubit_waveform.marker_1[
+                pulse_end_points - pulse_mod_points:pulse_end_points] = 1
+        element.add_waveform(qubit_waveform)
+        element.add_waveform(readout_waveform)
+        rabi_sequence.add_element(element)
+
+    rabi_sequence.check()
+
+    return rabi_sequence
+
+
+def make_rabi_gaussian_sequence(sigma_cuttoff, pi_amp=1, start=0,
+                                stop=200e-9, step=2e-9,
+                                channels=[1, 4], pulse_mod=False):
+    """
+    Square qubit drive of pi amplitude of varying duration, square readout
+    drive. Markers on readout channel (1 for readout start, 2 for seq start)
+    """
+    validate_pulse_dictionary()
+    rabi_sequence = Sequence(name='rabi',
+                             variable='gaussian_drive_duration',
+                             variable_label='Drive Duration',
+                             variable_unit='s',
+                             step=step,
+                             start=start,
+                             stop=stop)
+
+    p_dict = get_pulse_dict()
+    resolution = 1 / p_dict['sample_rate']
+    readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
+    readout_marker_start = readout_start - p_dict['marker_readout_delay']
+    readout_start_points = round(readout_start / resolution)
+    readout_marker_start_points = round(readout_marker_start / resolution)
+    readout_points = round(p_dict['readout_time'] / resolution)
+    pulse_end_points = round(p_dict['pulse_end'] / resolution)
+    marker_points = round(p_dict['marker_time'] / resolution)
+    total_points = round(p_dict['cycle_duration'] / resolution)
+
+    pulse_mod_points = int(sigma_cuttoff * 4 * stop / resolution)
+
+    readout_template = Waveform(length=total_points, channel=channels[1])
+
+    readout_template.wave[
+        readout_start_points:readout_start_points + readout_points] = 1
+    readout_template.marker_1[
+        readout_marker_start_points:readout_marker_start_points + marker_points] = 1
+
+    for i, pi_duration in enumerate(rabi_sequence.variable_array):
+        pi_pulse = make_gaussian(p_dict['sample_rate'], pi_duration,
+                                 sigma_cuttoff, pi_amp)
+        element = Element()
+        qubit_waveform = Waveform(length=total_points, channel=channels[0])
+        readout_waveform = readout_template.copy()
+        if i == 0:
+            readout_waveform.marker_2[10:10 + marker_points] = 1
+        qubit_start = int(pulse_end_points - len(pi_pulse))
+        qubit_end = int(pulse_end_points)
+        qubit_waveform.wave[qubit_start:qubit_end] = pi_pulse
+        if pulse_mod:
+            qubit_waveform.marker_1[
+                pulse_end_points - pulse_mod_points:pulse_end_points] = 1
+        element.add_waveform(qubit_waveform)
+        element.add_waveform(readout_waveform)
+        rabi_sequence.add_element(element)
+
+    rabi_sequence.check()
+
+    return rabi_sequence
+
+
+def make_rabi_gaussianSSB_sequence(sigma_cuttoff, pi_amp=1, start=0,
+                                   stop=200e-9, step=2e-9, SSBfreq=100e6,
+                                   channels=[1, 2, 4], pulse_mod=True):
+    """
+    Square qubit drive of pi amplitude of varying duration, square readout
+    drive. Markers on readout channel (1 for readout start, 2 for seq start)
+    """
+    validate_pulse_dictionary()
+    rabi_sequence = Sequence(name='rabi',
+                             variable='gaussian_drive_duration',
+                             variable_label='Drive Duration',
+                             variable_unit='s',
+                             step=step,
+                             start=start,
+                             stop=stop)
+
+    p_dict = get_pulse_dict()
+    resolution = 1 / p_dict['sample_rate']
+    readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
+    readout_marker_start = readout_start - p_dict['marker_readout_delay']
+    readout_start_points = round(readout_start / resolution)
+    readout_marker_start_points = round(readout_marker_start / resolution)
+    readout_points = round(p_dict['readout_time'] / resolution)
+    pulse_end_points = round(p_dict['pulse_end'] / resolution)
+    marker_points = round(p_dict['marker_time'] / resolution)
+    total_points = round(p_dict['cycle_duration'] / resolution)
+
+    pulse_mod_points = int(sigma_cuttoff * 4 * stop / resolution)
+
+    readout_template = Waveform(length=total_points, channel=channels[2])
+
+    readout_template.wave[
+        readout_start_points:readout_start_points + readout_points] = 1
+    readout_template.marker_1[
+        readout_marker_start_points:readout_marker_start_points + marker_points] = 1
+
+    for i, pi_duration in enumerate(rabi_sequence.variable_array):
+        pi_pulseI = make_SSB_I_gaussian(p_dict['sample_rate'], pi_duration,
+                                        sigma_cuttoff, pi_amp, SSBfreq)
+        pi_pulseQ = make_SSB_Q_gaussian(p_dict['sample_rate'], pi_duration,
+                                        sigma_cuttoff, pi_amp, SSBfreq)
+        element = Element()
+        qubit_waveformI = Waveform(length=total_points, channel=channels[0])
+        qubit_waveformQ = Waveform(length=total_points, channel=channels[1])
+        readout_waveform = readout_template.copy()
+        if i == 0:
+            readout_waveform.marker_2[10:10 + marker_points] = 1
+        qubit_start = int(pulse_end_points - len(pi_pulseI))
+        qubit_end = int(pulse_end_points)
+        qubit_waveformI.wave[qubit_start:qubit_end] = pi_pulseI
+        qubit_waveformQ.wave[qubit_start:qubit_end] = pi_pulseQ
+        if pulse_mod:
+            qubit_waveformI.marker_1[
+                pulse_end_points-pulse_mod_points:pulse_end_points] = 1
+            qubit_waveformQ.marker_1[
+                pulse_end_points-pulse_mod_points:pulse_end_points] = 1
+        element.add_waveform(qubit_waveformI)
+        element.add_waveform(qubit_waveformQ)
+        element.add_waveform(readout_waveform)
+        rabi_sequence.add_element(element)
+
+    rabi_sequence.check()
+
+    return rabi_sequence
+
+
+def make_t1_square_seq(pi_duration, pi_amp=1, start=0, stop=5e-6, step=50e-9,
+                channels=[1, 4], pulse_mod=False):
     """
     Square qubit drive for pi duration at pi amplitude on qubit with varying
     wait time before readout (square pulse for readout time). Markers on
@@ -163,6 +434,8 @@ def make_t1_seq(pi_duration, pi_amp, start=0, stop=5e-6, step=50e-9,
     delay_array_points = np.round(
         t1_sequence.variable_array / resolution).astype(np.int)
 
+    pulse_mod_points = int((qubit_points * 4 + stop) / resolution)
+
     for i, delay_points in enumerate(delay_array_points):
         element = Element()
         qubit_waveform = Waveform(length=total_points, channel=channels[0])
@@ -172,6 +445,9 @@ def make_t1_seq(pi_duration, pi_amp, start=0, stop=5e-6, step=50e-9,
         qubit_start = int(pulse_end_points - delay_points - qubit_points)
         qubit_end = int(qubit_start + qubit_points)
         qubit_waveform.wave[qubit_start:qubit_end] = pi_amp
+        if pulse_mod:
+            qubit_waveform.marker_1[
+                pulse_end_points - pulse_mod_points:pulse_end_points] = 1
         element.add_waveform(qubit_waveform)
         element.add_waveform(readout_waveform)
         t1_sequence.add_element(element)
@@ -179,20 +455,22 @@ def make_t1_seq(pi_duration, pi_amp, start=0, stop=5e-6, step=50e-9,
     return t1_sequence
 
 
-def make_rabi_sequence(pi_amp, start=0, stop=200e-9, step=2e-9,
-                       channels=[1, 4], pulse_mod=False):
+def make_t1_gaussian_seq(pi_duration, sigma_cuttoff, pi_amp=1, start=0,
+                         stop=5e-6, step=50e-9, channels=[1, 4],
+                         pulse_mod=False):
     """
-    Square qubit drive of pi amplitude of varying duration, square readout
-    drive. Markers on readout channel (1 for readout start, 2 for seq start)
+    Gaussian qubit drive for pi duration at pi amplitude on qubit with varying
+    wait time before readout (square pulse for readout time). Markers on
+    readout channel (1 for readout start, 2 for seq start)
     """
     validate_pulse_dictionary()
-    rabi_sequence = Sequence(name='rabi',
-                             variable='drive_duration',
-                             variable_label='Drive Duration',
-                             variable_unit='s',
-                             step=step,
-                             start=start,
-                             stop=stop)
+    t1_sequence = Sequence(name='t1',
+                           variable='drive_readout_delay',
+                           variable_label='Delay',
+                           variable_unit='s',
+                           step=step,
+                           start=start,
+                           stop=stop)
 
     p_dict = get_pulse_dict()
     resolution = 1 / p_dict['sample_rate']
@@ -205,8 +483,6 @@ def make_rabi_sequence(pi_amp, start=0, stop=200e-9, step=2e-9,
     marker_points = round(p_dict['marker_time'] / resolution)
     total_points = round(p_dict['cycle_duration'] / resolution)
 
-    pulse_mod_points = 2 * int((stop - start) / resolution)
-
     readout_template = Waveform(length=total_points, channel=channels[1])
 
     readout_template.wave[
@@ -214,31 +490,39 @@ def make_rabi_sequence(pi_amp, start=0, stop=200e-9, step=2e-9,
     readout_template.marker_1[
         readout_marker_start_points:readout_marker_start_points + marker_points] = 1
 
-    qubit_duration_array_points = np.round(
-        rabi_sequence.variable_array / resolution).astype(int)
+    delay_array_points = np.round(
+        t1_sequence.variable_array / resolution).astype(np.int)
 
-    for i, qubit_points in enumerate(qubit_duration_array_points):
+    pulse_mod_points = int((sigma_cuttoff * 4 + stop) / resolution) 
+
+    for i, delay_points in enumerate(delay_array_points):
+        pi_pulse = make_gaussian(p_dict['sample_rate'], pi_duration,
+                                 sigma_cuttoff, pi_amp)
         element = Element()
         qubit_waveform = Waveform(length=total_points, channel=channels[0])
         readout_waveform = readout_template.copy()
         if i == 0:
             readout_waveform.marker_2[10:10 + marker_points] = 1
-        qubit_start = int(pulse_end_points - qubit_points)
-        qubit_end = int(pulse_end_points)
-        qubit_waveform.wave[qubit_start:qubit_end] = pi_amp
+        qubit_start = int(pulse_end_points - delay_points - len(pi_pulse))
+        qubit_end = int(qubit_start + len(pi_pulse))
+        qubit_waveform.wave[qubit_start:qubit_end] = pi_pulse
         if pulse_mod:
-            qubit_waveform.marker_1[pulse_end_points-pulse_mod_points:pulse_end_points] = 1
+            qubit_waveform.marker_1[
+                pulse_end_points - pulse_mod_points:pulse_end_points] = 1
         element.add_waveform(qubit_waveform)
         element.add_waveform(readout_waveform)
-        rabi_sequence.add_element(element)
-
-    rabi_sequence.check()
-
-    return rabi_sequence
+        t1_sequence.add_element(element)
+    t1_sequence.check()
+    return t1_sequence
 
 
-def make_ramsey_sequence(pi_duration, pi_amp, start=0, stop=200e-9, step=2e-9,
-                         channels=[1, 4]):
+#######################################################################
+# Ramseys and T2
+#######################################################################
+
+
+def make_ramsey_square_sequence(pi_duration, pi_half_amp=1/2, start=0, stop=200e-9,
+                                step=2e-9, channels=[1, 4], pulse_mod=False):
     """
     Two square pulses on qubit of pi duration of half pi amplitude separated
     by varying duration. Square readout with markers (1 for readout start,
@@ -275,6 +559,8 @@ def make_ramsey_sequence(pi_duration, pi_amp, start=0, stop=200e-9, step=2e-9,
     delay_array_points = np.round(
         ramsey_sequence.variable_array / resolution).astype(np.int)
 
+    pulse_mod_points = int((stop + 4 * pi_duration) / resolution)
+
     for i, delay_points in enumerate(delay_array_points):
         element = Element()
         qubit_waveform = Waveform(length=total_points, channel=channels[0])
@@ -285,8 +571,11 @@ def make_ramsey_sequence(pi_duration, pi_amp, start=0, stop=200e-9, step=2e-9,
         qubit_end_first = int(qubit_start_first + qubit_points)
         qubit_start_second = int(pulse_end_points - qubit_points)
         qubit_end_second = int(qubit_start_second + qubit_points)
-        qubit_waveform.wave[qubit_start_first:qubit_end_first] = pi_amp / 2
-        qubit_waveform.wave[qubit_start_second:qubit_end_second] = pi_amp / 2
+        qubit_waveform.wave[qubit_start_first:qubit_end_first] = pi_half_amp
+        qubit_waveform.wave[qubit_start_second:qubit_end_second] = pi_half_amp
+        if pulse_mod:
+            qubit_waveform.marker_1[
+                pulse_end_points - pulse_mod_points:pulse_end_points] = 1
         element.add_waveform(qubit_waveform)
         element.add_waveform(readout_waveform)
         ramsey_sequence.add_element(element)
@@ -294,187 +583,22 @@ def make_ramsey_sequence(pi_duration, pi_amp, start=0, stop=200e-9, step=2e-9,
     return ramsey_sequence
 
 
-def make_floquet_dur_sequence(floquet_freq, start, stop, step,
-                              channels=[1, 4]):
+def make_ramsey_gaussian_sequence(pi_duration, sigma_cuttoff,
+                                  pi_half_amp=1 / 2, start=0, stop=200e-9,
+                                  step=2e-9, channels=[1, 4], pulse_mod=False):
     """
-    Cosine modulated qubit drive at floquet frequency for varying durations at
-    floquet amplitude. Square readout pulse with markers (1 for readout start,
+    Two Gaussian pulses on qubit of pi duration of half pi amplitude separated
+    by varying duration. Square readout with markers (1 for readout start,
     2 for seq start)
     """
     validate_pulse_dictionary()
-    duration_floquet_sequence = Sequence(name='floquet',
-                                         variable='floquet_dur',
-                                         variable_label='time',
-                                         variable_unit='S',
-                                         step=step,
-                                         start=start,
-                                         stop=stop)
-    p_dict = get_pulse_dict()
-    resolution = 1 / p_dict['sample_rate']
-    readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
-    readout_marker_start = readout_start - p_dict['marker_readout_delay']
-
-    readout_start_points = round(readout_start / resolution)
-    readout_marker_start_points = round(readout_marker_start / resolution)
-    readout_points = int(np.ceil(p_dict['readout_time'] / resolution))
-    pulse_end_points = int(np.ceil(p_dict['pulse_end'] / resolution))
-    marker_points = int(np.ceil(p_dict['marker_time'] / resolution))
-    total_points = int(np.ceil(p_dict['cycle_duration'] / resolution))
-
-    readout_template = Waveform(length=total_points, channel=channels[1])
-
-    readout_template.wave[
-        readout_start_points:readout_start_points + readout_points] = 1
-    readout_template.marker_1[
-        readout_marker_start_points:readout_marker_start_points + marker_points] = 1
-
-    floquet_durations = duration_floquet_sequence.variable_array
-    for i, floquet_duration in enumerate(floquet_durations):
-        element = Element()
-        qubit_waveform = Waveform(length=total_points, channel=channels[0])
-        readout_waveform = readout_template.copy()
-        if i == 0:
-            readout_waveform.marker_2[10:10 + marker_points] = 1
-
-        floquet_points = int(np.ceil(floquet_duration / resolution))
-        floquet_time_array = np.arange(floquet_points) * resolution
-        angle = floquet_time_array * floquet_freq * 2 * np.pi
-        cos_array = np.cos(angle)
-        floquet_start = pulse_end_points - floquet_points
-        qubit_waveform.wave[floquet_start:pulse_end_points] = cos_array
-        element.add_waveform(qubit_waveform)
-        element.add_waveform(readout_waveform)
-        duration_floquet_sequence.add_element(element)
-    duration_floquet_sequence.check()
-    return duration_floquet_sequence
-
-
-def make_floquet_freq_sequence(floquet_dur, floquet_amp, start, stop, step,
-                               channels=[1, 4]):
-    """
-    Cosine modulated qubit drive duation floquet_dur for varying frequencies
-    at floquet amplitude. Square readout pulse with markers (1 for readout
-    start, 2 for seq start)
-    """
-    validate_pulse_dictionary()
-    frequency_floquet_sequence = Sequence(name='floquet',
-                                          variable='floquet_freq',
-                                          variable_label='floquet_freq',
-                                          variable_unit='Hz',
-                                          step=step,
-                                          start=start,
-                                          stop=stop)
-    p_dict = get_pulse_dict()
-    resolution = 1 / p_dict['sample_rate']
-    readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
-    readout_marker_start = readout_start - p_dict['marker_readout_delay']
-
-    readout_start_points = round(readout_start / resolution)
-    readout_marker_start_points = round(readout_marker_start / resolution)
-    readout_points = int(np.ceil(p_dict['readout_time'] / resolution))
-    pulse_end_points = int(np.ceil(p_dict['pulse_end'] / resolution))
-    marker_points = int(np.ceil(p_dict['marker_time'] / resolution))
-    floquet_points = int(np.ceil(floquet_dur / resolution))
-    total_points = int(np.ceil(p_dict['cycle_duration'] / resolution))
-
-    readout_template = Waveform(length=total_points, channel=channels[1])
-
-    readout_template.wave[
-        readout_start_points:readout_start_points + readout_points] = 1
-    readout_template.marker_1[
-        readout_marker_start_points:readout_marker_start_points + marker_points] = 1
-
-    floquet_freqs = frequency_floquet_sequence.variable_array
-    for i, floquet_freq in enumerate(floquet_freqs):
-        element = Element()
-        qubit_waveform = Waveform(length=total_points, channel=channels[0])
-        readout_waveform = readout_template.copy()
-        if i == 0:
-            readout_waveform.marker_2[10:10 + marker_points] = 1
-
-        floquet_time_array = np.arange(floquet_points) * resolution
-        angle = floquet_time_array * floquet_freq * 2 * np.pi
-        cos_array = floquet_amp * np.cos(angle)
-        floquet_start = pulse_end_points - floquet_points
-        qubit_waveform.wave[floquet_start:pulse_end_points] = cos_array
-        element.add_waveform(qubit_waveform)
-        element.add_waveform(readout_waveform)
-        frequency_floquet_sequence.add_element(element)
-    frequency_floquet_sequence.check()
-    return frequency_floquet_sequence
-
-
-def make_floquet_amp_sequence(floquet_dur, floquet_freq, start, stop, step,
-                              channels=[1, 4]):
-    """
-    Cosine modulated qubit drive at floquet frequency for floquet_dur at
-    varying amplitude. Square readout pulse with markers (1 for readout start,
-    2 for seq start)
-    """
-    validate_pulse_dictionary()
-    amplitude_floquet_sequence = Sequence(name='floquet',
-                                          variable='floquet_amp',
-                                          variable_label='floquet_amp',
-                                          variable_unit='V',
-                                          step=step,
-                                          start=start,
-                                          stop=stop)
-    p_dict = get_pulse_dict()
-
-    resolution = 1 / p_dict['sample_rate']
-    readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
-    readout_marker_start = readout_start - p_dict['marker_readout_delay']
-
-    readout_start_points = round(readout_start / resolution)
-    readout_marker_start_points = round(readout_marker_start / resolution)
-    readout_points = int(np.ceil(p_dict['readout_time'] / resolution))
-    pulse_end_points = int(np.ceil(p_dict['pulse_end'] / resolution))
-    marker_points = int(np.ceil(p_dict['marker_time'] / resolution))
-    floquet_points = int(np.ceil(floquet_dur / resolution))
-    total_points = int(np.ceil(p_dict['cycle_duration'] / resolution))
-
-    readout_template = Waveform(length=total_points, channel=channels[1])
-
-    readout_template.wave[
-        readout_start_points:readout_start_points + readout_points] = 1
-    readout_template.marker_1[
-        readout_marker_start_points:readout_marker_start_points + marker_points] = 1
-
-    floquet_amps = amplitude_floquet_sequence.variable_array
-    for i, floquet_amp in enumerate(floquet_amps):
-        element = Element()
-        qubit_waveform = Waveform(length=total_points, channel=channels[0])
-        readout_waveform = readout_template.copy()
-        if i == 0:
-            readout_waveform.marker_2[10:10 + marker_points] = 1
-
-        floquet_time_array = np.arange(floquet_points) * resolution
-        angle = floquet_time_array * floquet_freq * 2 * np.pi
-        cos_array = floquet_amp * np.cos(angle)
-        floquet_start = pulse_end_points - floquet_points
-        qubit_waveform.wave[floquet_start:pulse_end_points] = cos_array
-        element.add_waveform(qubit_waveform)
-        element.add_waveform(readout_waveform)
-        amplitude_floquet_sequence.add_element(element)
-    amplitude_floquet_sequence.check()
-    return amplitude_floquet_sequence
-
-
-def make_rabi_gaussian_sequence(pi_amp, pulse_sigmas_number, start=0,
-                                stop=200e-9, step=2e-9,
-                                channels=[1, 4], pulse_mod=False):
-    """
-    Square qubit drive of pi amplitude of varying duration, square readout
-    drive. Markers on readout channel (1 for readout start, 2 for seq start)
-    """
-    validate_pulse_dictionary()
-    rabi_sequence = Sequence(name='rabi',
-                             variable='gaussian_drive_duration',
-                             variable_label='Drive Duration',
-                             variable_unit='s',
-                             step=step,
-                             start=start,
-                             stop=stop)
+    ramsey_sequence = Sequence(name='ramsey',
+                               variable='drive_drive_delay',
+                               variable_label='Delay',
+                               variable_unit='s',
+                               step=step,
+                               start=start,
+                               stop=stop)
 
     p_dict = get_pulse_dict()
     resolution = 1 / p_dict['sample_rate']
@@ -487,9 +611,6 @@ def make_rabi_gaussian_sequence(pi_amp, pulse_sigmas_number, start=0,
     marker_points = round(p_dict['marker_time'] / resolution)
     total_points = round(p_dict['cycle_duration'] / resolution)
 
-    pulse_mod_points = int(2 * pulse_sigmas_number *
-                           (stop - start) / resolution)
-
     readout_template = Waveform(length=total_points, channel=channels[1])
 
     readout_template.wave[
@@ -497,88 +618,46 @@ def make_rabi_gaussian_sequence(pi_amp, pulse_sigmas_number, start=0,
     readout_template.marker_1[
         readout_marker_start_points:readout_marker_start_points + marker_points] = 1
 
-    for i, pi_duration in enumerate(rabi_sequence.variable_array):
-        pi_pulse = make_gaussian(p_dict['sample_rate'], pi_duration,
-                                 pulse_sigmas_number, pi_amp)
+    delay_array_points = np.round(
+        ramsey_sequence.variable_array / resolution).astype(np.int)
+
+    pi_half_pulse = make_gaussian(p_dict['sample_rate'], pi_duration,
+                                  sigma_cuttoff, pi_half_amp)
+
+    pulse_mod_points = int((stop + 4 * pi_duration * sigma_cuttoff) /
+                           resolution)
+
+    for i, delay_points in enumerate(delay_array_points):
         element = Element()
         qubit_waveform = Waveform(length=total_points, channel=channels[0])
         readout_waveform = readout_template.copy()
         if i == 0:
             readout_waveform.marker_2[10:10 + marker_points] = 1
-        qubit_start = int(pulse_end_points - len(pi_pulse))
-        qubit_end = int(pulse_end_points)
-        qubit_waveform.wave[qubit_start:qubit_end] = pi_pulse
+        qubit_start_first = int(pulse_end_points - delay_points - 2 *
+                                len(pi_half_pulse))
+        qubit_end_first = int(qubit_start_first + len(pi_half_pulse))
+        qubit_start_second = int(pulse_end_points - len(pi_half_pulse))
+        qubit_end_second = int(qubit_start_second + len(pi_half_pulse))
+        qubit_waveform.wave[qubit_start_first:qubit_end_first] = pi_half_pulse
+        qubit_waveform.wave[
+            qubit_start_second:qubit_end_second] = pi_half_pulse
         if pulse_mod:
-            qubit_waveform.marker_1[pulse_end_points - pulse_mod_points:pulse_end_points] = 1
+            qubit_waveform.marker_1[
+                pulse_end_points - pulse_mod_points:pulse_end_points] = 1
         element.add_waveform(qubit_waveform)
         element.add_waveform(readout_waveform)
-        rabi_sequence.add_element(element)
-
-    rabi_sequence.check()
-
-    return rabi_sequence
-
-def make_rabi_gaussianSSB_sequence(pi_amp, pulse_sigmas_number, start=0, stop=200e-9, step=2e-9, SSBfreq=100e6,
-                       channels=[1,2,4], pulse_mod=True):
-    """
-    Square qubit drive of pi amplitude of varying duration, square readout
-    drive. Markers on readout channel (1 for readout start, 2 for seq start)
-    """
-    validate_pulse_dictionary()
-    rabi_sequence = Sequence(name='rabi',
-                             variable='gaussian_drive_duration',
-                             variable_label='Drive Duration',
-                             variable_unit='s',
-                             step=step,
-                             start=start,
-                             stop=stop)
-
-    p_dict = get_pulse_dict()
-    resolution = 1 / p_dict['sample_rate']
-    readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
-    readout_marker_start = readout_start - p_dict['marker_readout_delay']
-    readout_start_points = round(readout_start / resolution)
-    readout_marker_start_points = round(readout_marker_start / resolution)
-    readout_points = round(p_dict['readout_time'] / resolution)
-    pulse_end_points = round(p_dict['pulse_end'] / resolution)
-    marker_points = round(p_dict['marker_time'] / resolution)
-    total_points = round(p_dict['cycle_duration'] / resolution)
-
-    pulse_mod_points = int(2 * pulse_sigmas_number * (stop-start)/resolution)
-
-    readout_template = Waveform(length=total_points, channel=channels[2])
-
-    readout_template.wave[
-        readout_start_points:readout_start_points + readout_points] = 1
-    readout_template.marker_1[
-        readout_marker_start_points:readout_marker_start_points + marker_points] = 1
-
-    for i, pi_duration in enumerate(rabi_sequence.variable_array):
-        pi_pulseI = make_SSB_I_gaussian(p_dict['sample_rate'], pi_duration, pulse_sigmas_number, pi_amp, SSBfreq)
-        pi_pulseQ = make_SSB_Q_gaussian(p_dict['sample_rate'], pi_duration, pulse_sigmas_number, pi_amp, SSBfreq)
-        element = Element()
-        qubit_waveformI = Waveform(length=total_points, channel=channels[0])
-        qubit_waveformQ = Waveform(length=total_points, channel=channels[1])
-        readout_waveform = readout_template.copy()
-        if i == 0:
-            readout_waveform.marker_2[10:10 + marker_points] = 1
-        qubit_start = int(pulse_end_points - len(pi_pulseI))
-        qubit_end = int(pulse_end_points)
-        qubit_waveformI.wave[qubit_start:qubit_end] = pi_pulseI
-        qubit_waveformQ.wave[qubit_start:qubit_end] = pi_pulseQ
-        if pulse_mod:
-            qubit_waveformI.marker_1[pulse_end_points-pulse_mod_points:pulse_end_points] = 1
-        element.add_waveform(qubit_waveformI)
-        element.add_waveform(qubit_waveformQ)
-        element.add_waveform(readout_waveform)
-        rabi_sequence.add_element(element)
-
-    rabi_sequence.check()
-
-    return rabi_sequence
+        ramsey_sequence.add_element(element)
+    ramsey_sequence.check()
+    return ramsey_sequence
 
 
-def make_allxy_seq(pi_duration, total_sigmas, channels=[1,2,4], pulse_mod=False):
+##################################################################
+# AllXY
+##################################################################
+
+
+def make_allxy_seq(pi_duration, sigma_cuttoff, channels=[1, 2, 4],
+                   pulse_mod=False):
     """
     Oh dear.
     """
@@ -597,17 +676,19 @@ def make_allxy_seq(pi_duration, total_sigmas, channels=[1,2,4], pulse_mod=False)
     marker_points = round(p_dict['marker_time'] / resolution)
     total_points = round(p_dict['cycle_duration'] / resolution)
 
-    pi_pulse = make_gaussian(p_dict['sample_rate'], pi_duration, total_sigmas, 1)
-    pi_half_pulse = make_gaussian(p_dict['sample_rate'], pi_duration, total_sigmas, 0.5)
+    pi_pulse = make_gaussian(p_dict['sample_rate'], pi_duration,
+                             sigma_cuttoff, 1)
+    pi_half_pulse = make_gaussian(p_dict['sample_rate'], pi_duration,
+                                  sigma_cuttoff, 0.5)
 
-    readout_waveform =  Waveform(length=total_points, channel=channels[2])
+    readout_waveform = Waveform(length=total_points, channel=channels[2])
     readout_waveform.wave[
         readout_start_points:readout_start_points + readout_points] = 1
     readout_waveform.marker_1[
         readout_marker_start_points:readout_marker_start_points + marker_points] = 1
 
     pulse_points = len(pi_pulse)
-    pulse_mod_points = int(pi_duration * total_sigmas * 4 / resolution)
+    pulse_mod_points = int(pi_duration * sigma_cuttoff * 2 / resolution)
 
     seq = Sequence(name='allxy', variable='operation_combination', variable_label='Operation Combination Id')
 
@@ -862,7 +943,7 @@ def make_allxy_seq(pi_duration, total_sigmas, channels=[1,2,4], pulse_mod=False)
     return seq
 
 
-def make_allxySSB_seq(pi_duration, pi_amp, SSBfreq, total_sigmas, channels=[1,2,4], pulse_mod=False):
+def make_allxySSB_seq(pi_duration, pi_amp, SSBfreq, sigma_cuttoff, channels=[1,2,4], pulse_mod=False):
     """
     Oh dear.
     """
@@ -881,14 +962,14 @@ def make_allxySSB_seq(pi_duration, pi_amp, SSBfreq, total_sigmas, channels=[1,2,
     marker_points = round(p_dict['marker_time'] / resolution)
     total_points = round(p_dict['cycle_duration'] / resolution)
 
-    pi_pulseI_x = make_SSB_I_gaussian(p_dict['sample_rate'], pi_duration, total_sigmas, pi_amp, SSBfreq)
-    pi_pulseQ_x = make_SSB_Q_gaussian(p_dict['sample_rate'], pi_duration, total_sigmas, pi_amp, SSBfreq)
-    pi_half_pulseI_x = make_SSB_I_gaussian(p_dict['sample_rate'], pi_duration, total_sigmas, pi_amp/2, SSBfreq)
-    pi_half_pulseQ_x = make_SSB_Q_gaussian(p_dict['sample_rate'], pi_duration, total_sigmas, pi_amp/2, SSBfreq)
-    pi_pulseI_y = -1*make_SSB_Q_gaussian(p_dict['sample_rate'], pi_duration, total_sigmas, pi_amp, SSBfreq)
-    pi_pulseQ_y = make_SSB_I_gaussian(p_dict['sample_rate'], pi_duration, total_sigmas, pi_amp, SSBfreq)
-    pi_half_pulseI_y = -1*make_SSB_Q_gaussian(p_dict['sample_rate'], pi_duration, total_sigmas, pi_amp/2, SSBfreq)
-    pi_half_pulseQ_y = make_SSB_I_gaussian(p_dict['sample_rate'], pi_duration, total_sigmas, pi_amp/2, SSBfreq)
+    pi_pulseI_x = make_SSB_I_gaussian(p_dict['sample_rate'], pi_duration, sigma_cuttoff, pi_amp, SSBfreq)
+    pi_pulseQ_x = make_SSB_Q_gaussian(p_dict['sample_rate'], pi_duration, sigma_cuttoff, pi_amp, SSBfreq)
+    pi_half_pulseI_x = make_SSB_I_gaussian(p_dict['sample_rate'], pi_duration, sigma_cuttoff, pi_amp/2, SSBfreq)
+    pi_half_pulseQ_x = make_SSB_Q_gaussian(p_dict['sample_rate'], pi_duration, sigma_cuttoff, pi_amp/2, SSBfreq)
+    pi_pulseI_y = -1*make_SSB_Q_gaussian(p_dict['sample_rate'], pi_duration, sigma_cuttoff, pi_amp, SSBfreq)
+    pi_pulseQ_y = make_SSB_I_gaussian(p_dict['sample_rate'], pi_duration, sigma_cuttoff, pi_amp, SSBfreq)
+    pi_half_pulseI_y = -1*make_SSB_Q_gaussian(p_dict['sample_rate'], pi_duration, sigma_cuttoff, pi_amp/2, SSBfreq)
+    pi_half_pulseQ_y = make_SSB_I_gaussian(p_dict['sample_rate'], pi_duration, sigma_cuttoff, pi_amp/2, SSBfreq)
 
     readout_waveform =  Waveform(length=total_points, channel=channels[2])
     readout_waveform.wave[
@@ -897,7 +978,7 @@ def make_allxySSB_seq(pi_duration, pi_amp, SSBfreq, total_sigmas, channels=[1,2,
         readout_marker_start_points:readout_marker_start_points + marker_points] = 1
 
     pulse_points = len(pi_pulseI_x)
-    pulse_mod_points = int(pi_duration * total_sigmas * 4 / resolution)
+    pulse_mod_points = int(pi_duration * sigma_cuttoff * 4 / resolution)
 
     seq = Sequence(name='allxy', variable='operation_combination', variable_label='Operation Combination Id')
 
@@ -1187,67 +1268,172 @@ def make_allxySSB_seq(pi_duration, pi_amp, SSBfreq, total_sigmas, channels=[1,2,
 
     return seq
 
-
-def plot_sequence(sequence, elemnum=0, channels=[1, 2]):
+def make_floquet_dur_sequence(floquet_freq, start, stop, step,
+                              channels=[1, 4]):
     """
-    Function which plots 2 channels and markers
-
-    Args:
-        sequence to plot
-        elemnum to plot
-        channels (list of two) to plot
-
-    Returns:
-        matplotlib fic
+    Cosine modulated qubit drive at floquet frequency for varying durations at
+    floquet amplitude. Square readout pulse with markers (1 for readout start,
+    2 for seq start)
     """
-    fig = plt.figure()
-    plt_count = len(channels) * 2
-    for i, chan in enumerate(channels):
-        index_a = (plt_count * 100) + 10 + (2 * i) + 1
-        index_b = index_a + 1
-        ax_w = fig.add_subplot(index_a)
-        ax_w.set_title('Channel {} waveform'.format(chan))
-        ax_w.set_ylim([-1.1, 1.1])
-        ax_m = fig.add_subplot(index_b)
-        ax_m.set_title('Channel {} markers'.format(chan))
-        ax_m.set_ylim([-0.1, 1.1])
-        ax_w.plot(sequence[elemnum][chan].wave, lw=1, color='#009FFF')
-        ax_m.plot(sequence[elemnum][chan].marker_1, lw=1,
-                  color='#008B45', alpha=0.6, label='m1')
-        ax_m.plot(sequence[elemnum][chan].marker_2, lw=1,
-                  color='#FE6447', alpha=0.6, label='m2')
-        ax_m.legend(loc='upper right', fontsize=10)
-    plt.tight_layout()
-    return fig
+    validate_pulse_dictionary()
+    duration_floquet_sequence = Sequence(name='floquet',
+                                         variable='floquet_dur',
+                                         variable_label='time',
+                                         variable_unit='S',
+                                         step=step,
+                                         start=start,
+                                         stop=stop)
+    p_dict = get_pulse_dict()
+    resolution = 1 / p_dict['sample_rate']
+    readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
+    readout_marker_start = readout_start - p_dict['marker_readout_delay']
+
+    readout_start_points = round(readout_start / resolution)
+    readout_marker_start_points = round(readout_marker_start / resolution)
+    readout_points = int(np.ceil(p_dict['readout_time'] / resolution))
+    pulse_end_points = int(np.ceil(p_dict['pulse_end'] / resolution))
+    marker_points = int(np.ceil(p_dict['marker_time'] / resolution))
+    total_points = int(np.ceil(p_dict['cycle_duration'] / resolution))
+
+    readout_template = Waveform(length=total_points, channel=channels[1])
+
+    readout_template.wave[
+        readout_start_points:readout_start_points + readout_points] = 1
+    readout_template.marker_1[
+        readout_marker_start_points:readout_marker_start_points + marker_points] = 1
+
+    floquet_durations = duration_floquet_sequence.variable_array
+    for i, floquet_duration in enumerate(floquet_durations):
+        element = Element()
+        qubit_waveform = Waveform(length=total_points, channel=channels[0])
+        readout_waveform = readout_template.copy()
+        if i == 0:
+            readout_waveform.marker_2[10:10 + marker_points] = 1
+
+        floquet_points = int(np.ceil(floquet_duration / resolution))
+        floquet_time_array = np.arange(floquet_points) * resolution
+        angle = floquet_time_array * floquet_freq * 2 * np.pi
+        cos_array = np.cos(angle)
+        floquet_start = pulse_end_points - floquet_points
+        qubit_waveform.wave[floquet_start:pulse_end_points] = cos_array
+        element.add_waveform(qubit_waveform)
+        element.add_waveform(readout_waveform)
+        duration_floquet_sequence.add_element(element)
+    duration_floquet_sequence.check()
+    return duration_floquet_sequence
 
 
-def make_save_send_load_awg_file(awg, sequence):
+def make_floquet_freq_sequence(floquet_dur, floquet_amp, start, stop, step,
+                               channels=[1, 4]):
     """
-    WYSIYWYG
-
-    Args:
-        awg instrument for upload
-        sequence to be uploaded
+    Cosine modulated qubit drive duation floquet_dur for varying frequencies
+    at floquet amplitude. Square readout pulse with markers (1 for readout
+    start, 2 for seq start)
     """
-    pulse_location = get_pulse_location()
-    try:
-        num = get_latest_counter(pulse_location) + 1
-    except (FileNotFoundError, OSError):
-        num = 1
-    name = '{0:03d}_{name}.awg'.format(num, name=sequence.name)
-    file_location = pulse_location + name
-    awg.make_and_save_awg_file(*sequence.unwrap(), filename=file_location)
-    awg.make_send_and_load_awg_file(*sequence.unwrap())
+    validate_pulse_dictionary()
+    frequency_floquet_sequence = Sequence(name='floquet',
+                                          variable='floquet_freq',
+                                          variable_label='floquet_freq',
+                                          variable_unit='Hz',
+                                          step=step,
+                                          start=start,
+                                          stop=stop)
+    p_dict = get_pulse_dict()
+    resolution = 1 / p_dict['sample_rate']
+    readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
+    readout_marker_start = readout_start - p_dict['marker_readout_delay']
+
+    readout_start_points = round(readout_start / resolution)
+    readout_marker_start_points = round(readout_marker_start / resolution)
+    readout_points = int(np.ceil(p_dict['readout_time'] / resolution))
+    pulse_end_points = int(np.ceil(p_dict['pulse_end'] / resolution))
+    marker_points = int(np.ceil(p_dict['marker_time'] / resolution))
+    floquet_points = int(np.ceil(floquet_dur / resolution))
+    total_points = int(np.ceil(p_dict['cycle_duration'] / resolution))
+
+    readout_template = Waveform(length=total_points, channel=channels[1])
+
+    readout_template.wave[
+        readout_start_points:readout_start_points + readout_points] = 1
+    readout_template.marker_1[
+        readout_marker_start_points:readout_marker_start_points + marker_points] = 1
+
+    floquet_freqs = frequency_floquet_sequence.variable_array
+    for i, floquet_freq in enumerate(floquet_freqs):
+        element = Element()
+        qubit_waveform = Waveform(length=total_points, channel=channels[0])
+        readout_waveform = readout_template.copy()
+        if i == 0:
+            readout_waveform.marker_2[10:10 + marker_points] = 1
+
+        floquet_time_array = np.arange(floquet_points) * resolution
+        angle = floquet_time_array * floquet_freq * 2 * np.pi
+        cos_array = floquet_amp * np.cos(angle)
+        floquet_start = pulse_end_points - floquet_points
+        qubit_waveform.wave[floquet_start:pulse_end_points] = cos_array
+        element.add_waveform(qubit_waveform)
+        element.add_waveform(readout_waveform)
+        frequency_floquet_sequence.add_element(element)
+    frequency_floquet_sequence.check()
+    return frequency_floquet_sequence
 
 
-def check_sample_rate(awg):
+def make_floquet_amp_sequence(floquet_dur, floquet_freq, start, stop, step,
+                              channels=[1, 4]):
     """
-    Checks sample rate in pulse dict against that on awg
-
-    Args:
-        awg instrument for checking
+    Cosine modulated qubit drive at floquet frequency for floquet_dur at
+    varying amplitude. Square readout pulse with markers (1 for readout start,
+    2 for seq start)
     """
-    sr = get_pulse_val('sample_rate')
-    if sr != awg.clock_freq():
-        awg.clock_freq(sr)
-    print('awg clock freq set to {}'.format(sr))
+    validate_pulse_dictionary()
+    amplitude_floquet_sequence = Sequence(name='floquet',
+                                          variable='floquet_amp',
+                                          variable_label='floquet_amp',
+                                          variable_unit='V',
+                                          step=step,
+                                          start=start,
+                                          stop=stop)
+    p_dict = get_pulse_dict()
+
+    resolution = 1 / p_dict['sample_rate']
+    readout_start = p_dict['pulse_end'] + p_dict['pulse_readout_delay']
+    readout_marker_start = readout_start - p_dict['marker_readout_delay']
+
+    readout_start_points = round(readout_start / resolution)
+    readout_marker_start_points = round(readout_marker_start / resolution)
+    readout_points = int(np.ceil(p_dict['readout_time'] / resolution))
+    pulse_end_points = int(np.ceil(p_dict['pulse_end'] / resolution))
+    marker_points = int(np.ceil(p_dict['marker_time'] / resolution))
+    floquet_points = int(np.ceil(floquet_dur / resolution))
+    total_points = int(np.ceil(p_dict['cycle_duration'] / resolution))
+
+    readout_template = Waveform(length=total_points, channel=channels[1])
+
+    readout_template.wave[
+        readout_start_points:readout_start_points + readout_points] = 1
+    readout_template.marker_1[
+        readout_marker_start_points:readout_marker_start_points + marker_points] = 1
+
+    floquet_amps = amplitude_floquet_sequence.variable_array
+    for i, floquet_amp in enumerate(floquet_amps):
+        element = Element()
+        qubit_waveform = Waveform(length=total_points, channel=channels[0])
+        readout_waveform = readout_template.copy()
+        if i == 0:
+            readout_waveform.marker_2[10:10 + marker_points] = 1
+
+        floquet_time_array = np.arange(floquet_points) * resolution
+        angle = floquet_time_array * floquet_freq * 2 * np.pi
+        cos_array = floquet_amp * np.cos(angle)
+        floquet_start = pulse_end_points - floquet_points
+        qubit_waveform.wave[floquet_start:pulse_end_points] = cos_array
+        element.add_waveform(qubit_waveform)
+        element.add_waveform(readout_waveform)
+        amplitude_floquet_sequence.add_element(element)
+    amplitude_floquet_sequence.check()
+    return amplitude_floquet_sequence
+
+
+##################################################################
+# AllXY
+##################################################################

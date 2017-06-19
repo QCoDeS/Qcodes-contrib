@@ -4,14 +4,14 @@ import matplotlib.pyplot as plt
 from scipy import signal
 from . import exp_decay, exp_decay_sin, get_calibration_dict, get_title, \
     save_fig, smooth_data_butter, smooth_data_SG, plot_cf_data, \
-    get_sample_name, g_from_qubit
+    get_sample_name, g_from_qubit, set_calibration_val, get_calibration_val
 
 # TODO: write fit functions: qubit_from_ssb_measure,
 #                            qubit_from_ssb_power_sweep,
 #                            qubit_from_ssb_volt_sweep
-# TODO: docstrings
+# TODO: write fit for resonance and use this to find resonance
+#    not argmin
 # TODO: remove hard coding of linear_magnitude
-
 
 ###########################
 # VNA
@@ -21,7 +21,7 @@ from . import exp_decay, exp_decay_sin, get_calibration_dict, get_title, \
 def find_peaks(dataset, fs, cutoff=0.2e-6, order=5,
                subplot=None, widths=np.linspace(1, 150)):
     """
-    Function which given a 1d array smoothes the data and finds resonances
+    Function which given a 1d array smoothes the data, finds resonances
     and plots results
 
     Args:
@@ -68,7 +68,6 @@ def find_peaks(dataset, fs, cutoff=0.2e-6, order=5,
     fig.suptitle('{}_{}_find_peaks'.format(num, get_sample_name()),
                  fontsize=12)
 
-    # TODO save this info!!
     print(txt)
     return peakind, setpoints[peakind], subplot
 
@@ -134,7 +133,6 @@ def get_resonator_push(dataset):
     plt.tight_layout()
 
     try:
-        # TODO: replace with data.location_provider.counter?
         fig.data_num = dataset.data_num
         fig.suptitle('dataset {}'.format(fig.data_num), fontsize=12)
         fig.text(0, 0, 'bare res: {}, pushed res: {}, push: {}'.format(
@@ -151,6 +149,22 @@ def get_resonator_push(dataset):
 ###########################
 
 def find_extreme(data, x_key="freq", y_key="mag", extr="min"):
+    """
+    Function which finds the min or max along the y axis and returns the
+    x and y values at this point
+
+    Args:
+        data (qcodes dataset)
+        x_key (string) (default 'freq'): string to search data arrays keys
+            for to find x data
+        y_key (string) (default 'mag'): string to search data arrays keys
+            for to find y data
+        extr ('min' or 'max') (default 'min'): whether to find max or min
+            along this axis
+
+    Returns:
+        extr_x, y
+    """
     try:
         x_key_array_name = [v for v in data.arrays.keys() if x_key in v][0]
     except IndexError:
@@ -168,45 +182,44 @@ def find_extreme(data, x_key="freq", y_key="mag", extr="min"):
     y_data = getattr(data, y_key_array_name)
     if extr is "min":
         index = np.argmin(y_data)
-        val = np.amin(y_data)
+        extr_y = np.amin(y_data)
     elif extr is "max":
         index = np.argmax(y_data)
-        val = np.amax(y_data)
+        extr_y = np.amax(y_data)
     else:
         raise ValueError('extr must be set to "min" or "max", given'
                          ' {}'.format(extr))
-    extr_freq = x_data[index]
-    return extr_freq, val
+    extr_x = x_data[index]
+    return extr_x, extr_y
 
 
-def recalculate_g(dec_chans=None):
+def recalculate_g(calib_update=False):
     """
     Function which uses the values in the calibration dictionary for expected
     qubit position, actual position, resonator push and g value to recalculate
     the g value for the current qubit and compare it to the old value.
+    value
 
     Args:
-        dec_chans (default None): if dec_chans given, gate value of current
-            qubit is compared to value at which resonator data was taken to
-            check validity of recalculated g
+        calib_update: whether to update the calibration dictionary value of the
+            current qubit for g_value
     """
-    c_dict = get_calibration_dict()
-    expected = c_dict['expected_qubit_positions'][c_dict['current_qubit']]
-    actual = c_dict['actual_qubit_positions'][c_dict['current_qubit']]
-    res_data = c_dict['resonator_pushes'][c_dict['current_qubit']]
-    old_g = c_dict['g_values'][c_dict['current_qubit']]
-    new_g = g_from_qubit(actual, res_data[0], res_data[2])
-    if dec_chans is not None:
-        current_voltage = dec_chans[c_dict['current_qubit']].get_latest()
-        if (c_dict['gatability'][c_dict['current_qubit']] and
-                (current_voltage !=
-                    c_dict['gate_volts'][c_dict['current_qubit']])):
-            print('New g factor calculated will not be a good estimate '
-                  'as current gate value is not the same as the value when '
-                  'the push on the resonator was measured.')
+    qubit_freq = get_calibration_val('qubit_freq')
+    expected_qubit_freq = get_calibration_val('expected_qubit_freq')
+    old_g = get_calibration_val('g_value')
+    bare_res = get_calibration_val('bare_res_freq')
+    old_pushed_res = get_calibration_val('pushed_res_freq')
+    new_pushed_res = get_calibration_val('cavity_freq')
+    old_push = old_pushed_res - bare_res
+    new_push = new_pushed_res - bare_res
+    new_g = g_from_qubit(qubit_freq, bare_res, new_pushed_res)
+    if calib_update:
+        set_calibration_val('g_value', new_g)
     print('expected qubit freq: {}\n (from g of {}, push on resonator {})\n'
-          'actual qubit freq: {}\n (for same push gives g of {}'.format(
-              expected, old_g, res_data[2], actual, new_g))
+          'actual qubit freq: {}\n (gives g of {}, push on resonator {})'
+          ''.format(
+              expected_qubit_freq, old_g, old_push,
+              qubit_freq, new_g, new_push))
     return new_g
 
 
@@ -224,7 +237,8 @@ def qubit_from_ssb_volt_sweep(dataset, gradient_sign=1, min_res_width=4e6,
 
 
 def get_t2(data, x_name='delay', y_name='magnitude',
-           counter=None, plot=True, subplot=None):
+           plot=True, subplot=None,
+           initial_fit_params=[0.003, 1e-7, 10e7, 0, 0.01]):
     """
     Function which fits results of a data set to a sine wave modulated
     by an exponential decay and returns the fit parameters and the standard
@@ -235,17 +249,17 @@ def get_t2(data, x_name='delay', y_name='magnitude',
         x_name (str) (default 'delay'): x axis key used to search data.arrays
             for corresponding data
         y_name (str) (default 'magnitude'): y axis key
-        counter (int) (default None): used to set title and name for saving if
-            dataset does not have a data_num (which it should!)
         plot (default True)
         subplot (default None): subplot to plot in otherwise makes new figure
+        expected_vals (default [0.003, 1e-7, 10e7, 0, 0.01]): initial values
+            for fit function
     """
     x_data = getattr(getattr(data, x_name), 'ndarray')
     y_data = getattr(getattr(data, y_name), 'ndarray')
     x_units = getattr(getattr(data, x_name), 'unit')
     y_units = getattr(getattr(data, y_name), 'unit')
     popt, pcov = curve_fit(exp_decay_sin, x_data, y_data,
-                           p0=[0.003, 1e-7, 10e7, 0, 0.01])
+                           p0=initial_fit_params)
     errors = np.sqrt(np.diag(pcov))
     print('fit to equation of form y = a * exp(-x / b) * sin(c * x + d) + e'
           'gives:\na {}, b {}, c {}, d {}, e{}\n'
@@ -260,10 +274,7 @@ def get_t2(data, x_name='delay', y_name='magnitude',
         else:
             ax = subplot
             fig = ax.figure
-        try:
-            num = data.data_num
-        except AttributeError:
-            num = counter
+        num = data.data_num
         try:
             qubit = get_calibration_dict()['current_qubit']
             title = '{}_{}_T2'.format(get_title(num), qubit)
@@ -272,7 +283,7 @@ def get_t2(data, x_name='delay', y_name='magnitude',
             title = '{}_T2'.format(get_title(num))
             name = '{}_T2'.format(num)
 
-        if (not hasattr(fig, "data_num")) and (counter is not None):
+        if not hasattr(fig, "data_num"):
             fig.data_num = num
         ax.plot(x_data,
                 exp_decay_sin(x_data, *popt),
@@ -290,7 +301,7 @@ def get_t2(data, x_name='delay', y_name='magnitude',
 
 
 def get_t1(data, x_name='delay', y_name='magnitude',
-           counter=None, plot=True, subplot=None):
+           plot=True, subplot=None, initial_fit_params=[0.05, 1e-6, 0.01]):
     """
     Function which fits results of a data set to an exponential decay and
     returns the fit parameters and the standard deviation errors on them.
@@ -300,16 +311,16 @@ def get_t1(data, x_name='delay', y_name='magnitude',
         x_name (str) (default 'delay'): x axis key used to search data.arrays
             for corresponding data
         y_name (str) (default 'magnitude'): y axis key
-        counter (int) (default None): used to set title and name for saving if
-            dataset does not have a data_num (which it should!)
         plot (default True)
         subplot (default None): subplot to plot in otherwise makes new figure
+        expected_vals (default 0.05, 1e-6, 0.01]): initial values
+            for fit function
     """
     x_data = getattr(getattr(data, x_name), 'ndarray')
     y_data = getattr(getattr(data, y_name), 'ndarray')
     x_units = getattr(getattr(data, x_name), 'unit')
     y_units = getattr(getattr(data, y_name), 'unit')
-    popt, pcov = curve_fit(exp_decay, x_data, y_data, p0=[0.05, 1e-6, 0.01])
+    popt, pcov = curve_fit(exp_decay, x_data, y_data, p0=initial_fit_params)
     errors = np.sqrt(np.diag(pcov))
     print('fit to equation of form y = a * exp(-x / b) + c gives:\n'
           'a {}, b {}, c {}\n'
@@ -322,10 +333,7 @@ def get_t1(data, x_name='delay', y_name='magnitude',
         else:
             ax = subplot
             fig = ax.figure
-        try:
-            num = data.data_num
-        except AttributeError:
-            num = counter
+        num = data.data_num
         try:
             qubit = get_calibration_dict()['current_qubit']
             title = '{}_{}_T1'.format(get_title(num), qubit)
@@ -334,7 +342,7 @@ def get_t1(data, x_name='delay', y_name='magnitude',
             title = '{}_T1'.format(get_title(num))
             name = '{}_T1'.format(num)
 
-        if (not hasattr(fig, "data_num")) and (counter is not None):
+        if not hasattr(fig, "data_num"):
             fig.data_num = num
         ax.plot(x_data,
                 exp_decay(x_data, *popt),

@@ -1,5 +1,5 @@
 import qcodes as qc
-from . import get_title, load
+from . import get_title
 
 
 def plot_data(data, key=None, matplot=False):
@@ -13,6 +13,9 @@ def plot_data(data, key=None, matplot=False):
         key (str): key which if specified is used to select the first array
             from the dataset for plotting with a name which contains this key.
         matplot (bool) (default False): default is to QtPlot the data
+
+    Returns:
+        qc Matplot or QtPlot
     """
     if hasattr(data, "data_num"):
         title = title = get_title(data.data_num)
@@ -57,6 +60,9 @@ def plot_data_single_window(dataset, meas_param, key=None):
         key (str) (default None): string to search the array names of the
             measured param for, all arrays with key in name will be added
             as subplots. Default is to plot all.
+
+    Returns:
+        QtPlot
     """
     if hasattr(dataset, "data_num"):
         title = title = get_title(dataset.data_num)
@@ -85,14 +91,14 @@ def save_plot(dataset, key):
     given key.
 
     Args:
-        dataset (int or qcodes dataset): dataset to plot or counter
-            from which dataset is loaded.
+        dataset (qcodes dataset): dataset to plot
         key (str): string specifying parameter array/values to plot
         (eg key="mag" will search arrays of the dataset for any with "mag"
          in the name).
+
+    Returns:
+        plot
     """
-    if isinstance(dataset, int):
-        dataset = load(dataset, plot=False)
     plot = plot_data(dataset, key=key)
     plot.save()
     return plot

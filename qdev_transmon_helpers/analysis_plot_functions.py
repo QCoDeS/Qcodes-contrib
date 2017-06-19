@@ -4,10 +4,6 @@ import qcodes as qc
 
 from . import get_title, get_pulse_location, get_analysis_location
 
-# TODO docstrings
-# TODO: replace plot_cf_data with a less rubbish version
-# TODO: plot_subset to work with both dimensions soft?
-
 
 def plot_cf_data(data_list, data_num=None,
                  subplot=None, xdata=None,
@@ -60,7 +56,23 @@ def plot_cf_data(data_list, data_num=None,
         return fig, sub
 
 
-def line_cut(array, vals, axis='y', data_num=None):
+def line_cut(dataset, key, vals, axis='y'):
+    """
+    Function which given an array of a dataset selects array within it
+    which corresponds to the set array values given and plots.
+
+    Args:
+        dataset (qcodes dataset)
+        key (string): key to search dataset for to find array to plot
+        vals (list): list of values of setpoints for which to cut the
+            specified array at (can be x or y axis depending on axis setting)
+        axis ('x' or 'y') (default 'y'): axis to cut along
+
+    Returns:
+        subplot with line cuts plotted
+    """
+    array = next(getattr(dataset, k)
+                 for k in dataset.arrays.keys() if key in k)
     x_data = np.array(getattr(array, "set_arrays")[1][0])
     y_data = np.array(getattr(array, "set_arrays")[0])
     x_label = '{} ({})'.format(getattr(array, "set_arrays")[
@@ -68,6 +80,7 @@ def line_cut(array, vals, axis='y', data_num=None):
     y_label = '{} ({})'.format(getattr(array, "set_arrays")[
         0].label, getattr(array, "set_arrays")[0].unit)
     z_label = array.name
+    data_num = dataset.data_num
     if axis is 'x':
         z_data = np.zeros((len(vals), len(y_data)))
         for i, v in enumerate(vals):
@@ -90,10 +103,28 @@ def line_cut(array, vals, axis='y', data_num=None):
                                 data_num=data_num,
                                 legend_labels=[str(v) + y_label for v in vals],
                                 axes_labels=[x_label, z_label])
-    return fig, sub
+    fig.data_num = data_num
+    return sub
 
 
-def plot_subset(array, x_start=None, x_stop=None, y_start=None, y_stop=None):
+def plot_subset(dataset, key, x_start=None, x_stop=None,
+                y_start=None, y_stop=None):
+    """
+    Function which plots a subset of a 2D dataset
+
+    Args:
+        dataset (qcodes dataset)
+        key (string): key to search dataset for to find array to plot
+        x_start (default is first x val)
+        x_stop (default is final x val)
+        y_start (default is first y val)
+        y_stop (default is final y val)
+
+    Returns:
+        subset plot
+    """
+    array = next(getattr(dataset, k)
+                 for k in dataset.arrays.keys() if key in k)
     x_data = np.array(getattr(array, "set_arrays")[1][0])
     y_data = np.array(getattr(array, "set_arrays")[0])
     x_label = '{} ({})'.format(getattr(array, "set_arrays")[
@@ -110,7 +141,7 @@ def plot_subset(array, x_start=None, x_stop=None, y_start=None, y_stop=None):
                           x_indices[0]:x_indices[-1]])
     plt.xlabel(x_label)
     plt.ylabel(y_label)
-    plt.title(array.name)
+    plt.title(get_title(dataset.data_num))
     return pl
 
 
@@ -122,6 +153,10 @@ def plot_with_markers(dataset, indices, subplot=None, key="linear_magnitude"):
     Args:
         dataset (qcodes DataSet)
         indices (array): array of data indices of resonances
+        subplot (default None) subplot to add markers to, default is to create
+            new one
+        key (default "linear_magnitude"): key to search dataset for array to
+            plot
 
     Returns:
         subplot (matplotlib AxesSubplot): plot of results

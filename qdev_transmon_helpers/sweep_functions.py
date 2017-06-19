@@ -2,7 +2,6 @@ import qcodes as qc
 from . import plot_data_single_window, plot_data
 
 # TODO: _?
-# TODO: check working of counter/data_num
 
 
 def sweep2d(meas_param, sweep_param1, start1, stop1, step1,

@@ -2,38 +2,39 @@ import numpy as np
 from math import sqrt, factorial
 from scipy import signal
 
-# TODO: make_gaussian rename + docstring
 
-def qubit_from_push(g, push, bare_res):
+def qubit_from_push(g, bare_res, pushed_res):
     """
     Get estimated qubit location given coupling, push on resonator
     and bare resonator position.
 
     Args:
         g: coupling in Hz
-        push: push in Hz
-        bare_res: resonator position in Hz
+        bare_res: high power resonator position in Hz
+        pushed_res: low power resonator position in Hz
 
     Returns:
         estimated qubit frequency
     """
+    push = pushed_res - bare_res
     delta = g**2 / push
     return bare_res - delta
 
 
-def g_from_qubit(qubit, push, bare_res):
+def g_from_qubit(qubit, bare_res, pushed_res):
     """
     Get estimated coupling strength given qubit frequency, push
     on resonator and bare resonator position.
 
     Args:
         qubit: qubit frequency
-        push: push in Hz
-        bare_res: resonator position in Hz
+        bare_res: high power resonator position in Hz
+        pushed_res: low power resonator position in Hz
 
     Returns:
         coupling of qubit to resonator
     """
+    push = pushed_res - bare_res
     delta = bare_res - qubit
     return sqrt(delta * push)
 
@@ -140,19 +141,53 @@ def smooth_data_butter(data, fs, cutoff, order):
     return y
 
 
-def make_gaussian(sampling_rate, sigma, total_sigmas, amp):
-    t = np.linspace(-1*total_sigmas*sigma, total_sigmas*sigma, num=(sampling_rate*total_sigmas*sigma)+1)
-    y = amp * np.exp(-(t/(2*sigma))**2)
+def make_gaussian(sampling_rate, sigma, sigma_cuttoff, amp=1):
+    """
+    Function which makes a gaussian of length (2*sigma_cuttoff)
+
+    Args:
+        sampling_rate
+        sigma
+        sigma_cuttoff
+        amp (default 1)
+    """
+    t = np.linspace(-1 * sigma_cuttoff * sigma, sigma_cuttoff * sigma,
+                    num=(sampling_rate * 2 * sigma_cuttoff * sigma) + 1)
+    y = amp * np.exp(-(t / (2 * sigma))**2)
     return y
 
 
-def make_SSB_I_gaussian(sampling_rate, sigma, total_sigmas, amp, SSBfreq):
-    t = np.linspace(-1*total_sigmas*sigma, total_sigmas*sigma, num=(sampling_rate*total_sigmas*sigma)+1)
-    y = amp * np.exp(-(t/(2*sigma))**2)*np.cos(2*np.pi*SSBfreq*t)
-    return y 
+def make_SSB_I_gaussian(sampling_rate, sigma, sigma_cuttoff, SSBfreq, amp=1,):
+    """
+    Function which makes the I component of a single sideband with a gaussan
+    envelope
+
+    Args:
+        sampling_rate
+        sigma
+        sigma_cuttoff
+        SSBfreq
+        amp (default 1)
+    """
+    t = np.linspace(-1 * sigma_cuttoff * sigma, sigma_cuttoff *
+                    sigma, num=(sampling_rate * 2 * sigma_cuttoff * sigma) + 1)
+    y = amp * np.exp(-(t / (2 * sigma))**2) * np.cos(2 * np.pi * SSBfreq * t)
+    return y
 
 
-def make_SSB_Q_gaussian(sampling_rate, sigma, total_sigmas, amp, SSBfreq):
-    t = np.linspace(-1*total_sigmas*sigma, total_sigmas*sigma, num=(sampling_rate*total_sigmas*sigma)+1)
-    y = amp * np.exp(-(t/(2*sigma))**2)*np.sin(2*np.pi*SSBfreq*t)
+def make_SSB_Q_gaussian(sampling_rate, sigma, sigma_cuttoff, SSBfreq, amp=1):
+    """
+    Function which makes the Q component of a single sideband with a gaussan
+    envelope
+
+    Args:
+        sampling_rate
+        sigma
+        sigma_cuttoff
+        SSBfreq
+        amp (default 1)
+    """
+    t = np.linspace(-1 * sigma_cuttoff * sigma, sigma_cuttoff *
+                    sigma, num=(sampling_rate * 2 * sigma_cuttoff * sigma) + 1)
+    y = amp * np.exp(-(t / (2 * sigma))**2) * np.sin(2 * np.pi * SSBfreq * t)
     return y

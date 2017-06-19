@@ -8,6 +8,8 @@ alazar_acq_types = ['samp', 'ave', 'rec']
 
 # TODO: AWG external ref source
 # TODO: alazar seq mode param default val
+# TODO: new import_decadac with new driver + channels
+# TODO: new import vna with new driver and channels
 
 
 def import_decadac(port=5, station=None, chan_count=None, all_chans_0=False):
@@ -57,6 +59,7 @@ def import_yoko(visa_address, name='yoko', station=None):
     print('imported yoko ZNB20: \'{}\''.format(name))
     print('-------------------------')
     return yoko
+
 
 def import_vna(visa_address, name='vna', station=None):
     from qcodes.instrument_drivers.rohde_schwarz.ZNB20 import ZNB20
