@@ -10,7 +10,7 @@ from . import Sequence, Waveform, Element
 # TODO: test segments
 # TODO: make_save_send_load_awg_file -> not doing same thing twice!
 # TODO: allxy clean up
-# TODOL docstrings
+# TODO: docstrings
 # TODO: T2 echo
 
 #################################################################
@@ -31,22 +31,19 @@ def plot_sequence(sequence, elemnum=0, channels=[1, 2]):
         matplotlib fig
     """
     fig = plt.figure()
-    plt_count = len(channels) * 2
+    plt_count = len(channels)
     for i, chan in enumerate(channels):
-        index_a = (plt_count * 100) + 10 + (2 * i) + 1
-        index_b = index_a + 1
-        ax_w = fig.add_subplot(index_a)
-        ax_w.set_title('Channel {} waveform'.format(chan))
-        ax_w.set_ylim([-1.1, 1.1])
-        ax_m = fig.add_subplot(index_b)
-        ax_m.set_title('Channel {} markers'.format(chan))
-        ax_m.set_ylim([-0.1, 1.1])
-        ax_w.plot(sequence[elemnum][chan].wave, lw=1, color='#009FFF')
-        ax_m.plot(sequence[elemnum][chan].marker_1, lw=1,
-                  color='#008B45', alpha=0.6, label='m1')
-        ax_m.plot(sequence[elemnum][chan].marker_2, lw=1,
-                  color='#FE6447', alpha=0.6, label='m2')
-        ax_m.legend(loc='upper right', fontsize=10)
+        index = (plt_count * 100) + 10 + i + 1
+        ax = fig.add_subplot(index)
+        ax.set_title('Channel {}'.format(chan))
+        ax.set_ylim([-1.1, 1.1])
+        ax.plot(sequence[elemnum][chan].wave, lw=1,
+                color='#009FFF', label='wave')
+        ax.plot(sequence[elemnum][chan].markers[1], lw=1,
+                color='#008B45', alpha=0.6, label='m1')
+        ax.plot(sequence[elemnum][chan].markers[2], lw=1,
+                color='#FE6447', alpha=0.6, label='m2')
+        ax.legend(loc='upper right', fontsize=10)
     plt.tight_layout()
     return fig
 
