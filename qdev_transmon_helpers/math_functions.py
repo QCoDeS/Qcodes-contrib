@@ -137,11 +137,10 @@ def smooth_data_butter(data, fs, cutoff, order):
         filtered data
     """
     b, a = butter_lowpass(cutoff, fs, order)
-    y = signal.filtfilt(b, a, data)
-    return y
+    return signal.filtfilt(b, a, data)
 
 
-def make_gaussian(sampling_rate, sigma, sigma_cuttoff, amp=1):
+def gaussian(sigma, sigma_cuttoff, amp, SR):
     """
     Function which makes a gaussian of length (2*sigma_cuttoff)
 
@@ -152,12 +151,11 @@ def make_gaussian(sampling_rate, sigma, sigma_cuttoff, amp=1):
         amp (default 1)
     """
     t = np.linspace(-1 * sigma_cuttoff * sigma, sigma_cuttoff * sigma,
-                    num=(sampling_rate * 2 * sigma_cuttoff * sigma) + 1)
-    y = amp * np.exp(-(t / (2 * sigma))**2)
-    return y
+                    num=int(SR * 2 * sigma_cuttoff * sigma))
+    return amp * np.exp(-(t / (2 * sigma))**2)
 
 
-def make_SSB_I_gaussian(sampling_rate, sigma, sigma_cuttoff, SSBfreq, amp=1,):
+def SSB_I_gaussian(sigma, sigma_cuttoff, SSBfreq, amp, SR):
     """
     Function which makes the I component of a single sideband with a gaussan
     envelope
@@ -170,12 +168,12 @@ def make_SSB_I_gaussian(sampling_rate, sigma, sigma_cuttoff, SSBfreq, amp=1,):
         amp (default 1)
     """
     t = np.linspace(-1 * sigma_cuttoff * sigma, sigma_cuttoff *
-                    sigma, num=(sampling_rate * 2 * sigma_cuttoff * sigma) + 1)
+                    sigma, num=int(SR * 2 * sigma_cuttoff * sigma))
     y = amp * np.exp(-(t / (2 * sigma))**2) * np.cos(2 * np.pi * SSBfreq * t)
     return y
 
 
-def make_SSB_Q_gaussian(sampling_rate, sigma, sigma_cuttoff, SSBfreq, amp=1):
+def SSB_Q_gaussian(sigma, sigma_cuttoff, SSBfreq, amp, SR):
     """
     Function which makes the Q component of a single sideband with a gaussan
     envelope
@@ -188,6 +186,41 @@ def make_SSB_Q_gaussian(sampling_rate, sigma, sigma_cuttoff, SSBfreq, amp=1):
         amp (default 1)
     """
     t = np.linspace(-1 * sigma_cuttoff * sigma, sigma_cuttoff *
-                    sigma, num=(sampling_rate * 2 * sigma_cuttoff * sigma) + 1)
-    y = amp * np.exp(-(t / (2 * sigma))**2) * np.sin(2 * np.pi * SSBfreq * t)
+                    sigma, num=int(SR * 2 * sigma_cuttoff * sigma))
+    y = amp * np.exp(-(t / (2 * sigma))**2) * -np.sin(2 * np.pi * SSBfreq * t)
     return y
+
+
+def ramp(start, stop, dur, SR):
+    points = int(SR * dur)
+    return np.linspace(start, stop, points)
+
+
+def flat(amp, dur, SR):
+    points = int(SR * dur)
+    return amp * np.ones(points)
+
+
+def gaussian_derivative(sigma, sigma_cutoff, amp, SR):
+    points = int(SR * 2 * sigma_cutoff * sigma)
+    t = np.linspace(-1 * sigma_cutoff * sigma, sigma_cutoff * sigma,
+                    num=points)
+    return -amp * t / sigma * np.exp(-(t / (2 * sigma))**2)
+
+
+def cos_wave(freq, amp, dur, SR):
+    points = int(SR * dur)
+    t = np.linspace(0, dur, num=points)
+    angle = t * freq * 2 * np.pi
+    return np.cos(angle)
+
+
+def sin_wave(freq, amp, dur, SR):
+    points = int(SR * dur)
+    t = np.linspace(0, dur, num=points)
+    angle = t * freq * 2 * np.pi
+    return np.sin(angle)
+
+
+def sin_wave_negative(freq, amp, dur, SR):
+    return -1 * sin_wave(freq, amp, dur, SR)
