@@ -155,7 +155,7 @@ def gaussian(sigma, sigma_cuttoff, amp, SR):
     return amp * np.exp(-(t / (2 * sigma))**2)
 
 
-def SSB_I_gaussian(sigma, sigma_cuttoff, SSBfreq, amp, SR):
+def cos_gaussian(sigma, sigma_cuttoff, SSBfreq, amp, SR, positive=True):
     """
     Function which makes the I component of a single sideband with a gaussan
     envelope
@@ -169,11 +169,13 @@ def SSB_I_gaussian(sigma, sigma_cuttoff, SSBfreq, amp, SR):
     """
     t = np.linspace(-1 * sigma_cuttoff * sigma, sigma_cuttoff *
                     sigma, num=int(SR * 2 * sigma_cuttoff * sigma))
-    y = amp * np.exp(-(t / (2 * sigma))**2) * np.cos(2 * np.pi * SSBfreq * t)
+    prefactor = amp if positive else -1 * amp
+    y = prefactor * np.exp(-(t / (2 * sigma))**2) * \
+        np.cos(2 * np.pi * SSBfreq * t)
     return y
 
 
-def SSB_Q_gaussian(sigma, sigma_cuttoff, SSBfreq, amp, SR):
+def sin_gaussian(sigma, sigma_cuttoff, SSBfreq, amp, SR, positive=True):
     """
     Function which makes the Q component of a single sideband with a gaussan
     envelope
@@ -187,7 +189,9 @@ def SSB_Q_gaussian(sigma, sigma_cuttoff, SSBfreq, amp, SR):
     """
     t = np.linspace(-1 * sigma_cuttoff * sigma, sigma_cuttoff *
                     sigma, num=int(SR * 2 * sigma_cuttoff * sigma))
-    y = amp * np.exp(-(t / (2 * sigma))**2) * -np.sin(2 * np.pi * SSBfreq * t)
+    prefactor = amp if positive else -1 * amp
+    y = prefactor * np.exp(-(t / (2 * sigma))**2) * \
+        -np.sin(2 * np.pi * SSBfreq * t)
     return y
 
 
@@ -208,19 +212,17 @@ def gaussian_derivative(sigma, sigma_cutoff, amp, SR):
     return -amp * t / sigma * np.exp(-(t / (2 * sigma))**2)
 
 
-def cos_wave(freq, amp, dur, SR):
+def cos_wave(freq, amp, dur, SR, positive=True):
     points = int(SR * dur)
     t = np.linspace(0, dur, num=points)
     angle = t * freq * 2 * np.pi
-    return np.cos(angle)
+    prefactor = 1 if positive else -1
+    return prefactor * np.cos(angle)
 
 
-def sin_wave(freq, amp, dur, SR):
+def sin_wave(freq, amp, dur, SR, positive=True):
     points = int(SR * dur)
     t = np.linspace(0, dur, num=points)
     angle = t * freq * 2 * np.pi
-    return np.sin(angle)
-
-
-def sin_wave_negative(freq, amp, dur, SR):
-    return -1 * sin_wave(freq, amp, dur, SR)
+    prefactor = 1 if positive else -1
+    return prefactor * np.sin(angle)

@@ -1,5 +1,5 @@
-from . import get_calibration_dict, gaussian, SSB_Q_gaussian, SSB_I_gaussian
-from . import Segment, Waveform, Element, Sequence
+from . import get_calibration_dict, gaussian, cos_gaussian, sin_gaussian
+from . import Waveform, Element, Sequence
 import numpy as np
 
 
@@ -277,10 +277,11 @@ def make_rabi_gaussianSSB_sequence_points(sigma_cuttoff, pi_amp=1, start=0,
     readout_template.add_marker(1, readout_marker_start_points, marker_points)
 
     for i, pi_duration in enumerate(rabi_sequence.variable_array):
-        pi_pulseI = SSB_I_gaussian(pi_duration, sigma_cuttoff,
-                                   SSBfreq, pi_amp, p_dict['sample_rate'])
-        pi_pulseQ = SSB_Q_gaussian(pi_duration, sigma_cuttoff,
-                                   SSBfreq, pi_amp, p_dict['sample_rate'])
+        pi_pulseI = cos_gaussian(pi_duration, sigma_cuttoff,
+                                 SSBfreq, pi_amp, p_dict['sample_rate'])
+        pi_pulseQ = sin_gaussian(pi_duration, sigma_cuttoff,
+                                 SSBfreq, pi_amp, p_dict['sample_rate'],
+                                 positive=False)
         element = Element()
         qubit_waveformI = Waveform(length=total_points, channel=channels[0])
         qubit_waveformQ = Waveform(length=total_points, channel=channels[1])
@@ -918,31 +919,39 @@ def make_allxySSB_seq(pi_duration, pi_amp, SSBfreq, sigma_cuttoff,
     marker_points = round(p_dict['marker_time'] / resolution)
     total_points = round(p_dict['cycle_duration'] / resolution)
 
-    pi_pulseI_x = SSB_I_gaussian(pi_duration, sigma_cuttoff, SSBfreq,
-                                 pi_amp, p_dict['sample_rate'])
-    pi_pulseQ_x = SSB_Q_gaussian(pi_duration, sigma_cuttoff, SSBfreq,
-                                 pi_amp, p_dict['sample_rate'])
+    pi_pulseI_x = cos_gaussian(pi_duration, sigma_cuttoff, SSBfreq,
+                               pi_amp, p_dict['sample_rate'])
+    pi_pulseQ_x = sin_gaussian(pi_duration, sigma_cuttoff, SSBfreq,
+                               pi_amp, p_dict['sample_rate'],
+                               positive=False)
 
-    pi_half_pulseI_x = SSB_I_gaussian(pi_duration, sigma_cuttoff, SSBfreq,
-                                      pi_half_amp, p_dict['sample_rate'])
-    pi_half_pulseQ_x = SSB_Q_gaussian(pi_duration, sigma_cuttoff, SSBfreq,
-                                      pi_half_amp, p_dict['sample_rate'])
+    pi_half_pulseI_x = cos_gaussian(pi_duration, sigma_cuttoff, SSBfreq,
+                                    pi_half_amp, p_dict['sample_rate'])
+    pi_half_pulseQ_x = sin_gaussian(pi_duration, sigma_cuttoff, SSBfreq,
+                                    pi_half_amp, p_dict['sample_rate'],
+                                    positive=False)
 
-    pi_pulseI_y = -1*make_SSB_Q_gaussian(p_dict['sample_rate'], pi_duration, sigma_cuttoff, pi_amp, SSBfreq)
-    pi_pulseQ_y = make_SSB_I_gaussian(p_dict['sample_rate'], pi_duration, sigma_cuttoff, pi_amp, SSBfreq)
-    pi_half_pulseI_y = -1*make_SSB_Q_gaussian(p_dict['sample_rate'], pi_duration, sigma_cuttoff, pi_amp/2, SSBfreq)
-    pi_half_pulseQ_y = make_SSB_I_gaussian(p_dict['sample_rate'], pi_duration, sigma_cuttoff, pi_amp/2, SSBfreq)
+    pi_pulseI_y = sin_gaussian(p_dict['sample_rate'], pi_duration,
+                               sigma_cuttoff, pi_amp, SSBfreq)
+    pi_pulseQ_y = cos_gaussian(p_dict['sample_rate'], pi_duration,
+                               sigma_cuttoff, pi_amp, SSBfreq)
+    pi_half_pulseI_y = sin_gaussian(p_dict['sample_rate'],
+                                    pi_duration, sigma_cuttoff,
+                                    pi_half_amp, SSBfreq)
+    pi_half_pulseQ_y = cos_gaussian(p_dict['sample_rate'],
+                                    pi_duration, sigma_cuttoff,
+                                    pi_half_amp, SSBfreq)
 
-    readout_waveform =  Waveform(length=total_points, channel=channels[2])
+    readout_waveform = Waveform(length=total_points, channel=channels[2])
     readout_waveform.wave[
         readout_start_points:readout_start_points + readout_points] = 1
-    readout_waveform.marker_1[
-        readout_marker_start_points:readout_marker_start_points + marker_points] = 1
+    readout_waveform.add_marker(1, readout_marker_start_points, marker_points)
 
     pulse_points = len(pi_pulseI_x)
     pulse_mod_points = int(pi_duration * sigma_cuttoff * 4 / resolution)
 
-    seq = Sequence(name='allxy', variable='operation_combination', variable_label='Operation Combination Id')
+    seq = Sequence(name='allxy', variable='operation_combination',
+                   variable_label='Operation Combination Id')
 
     elem_0 = Element()
     x_waveform_0 = Waveform(length=total_points, channel=1)
@@ -957,282 +966,350 @@ def make_allxySSB_seq(pi_duration, pi_amp, SSBfreq, sigma_cuttoff,
     elem_0.add_waveform(readout_first)
     seq.add_element(elem_0)
 
-    # elem_1 = Element()
-    # x_waveform_1 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_1 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_1.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseI_x
-    # y_waveform_1.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseQ_x
-    # x_waveform_1.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_pulseI_x
-    # y_waveform_1.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_pulseQ_x
-    # if pulse_mod:
-    #     x_waveform_1.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                             pulse_mod_points)
-    # elem_1.add_waveform(x_waveform_1)
-    # elem_1.add_waveform(y_waveform_1)
-    # elem_1.add_waveform(readout_first)
-    # seq.add_element(elem_1)
+    elem_1 = Element()
+    x_waveform_1 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_1 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_1.wave[pulse_end_points - 2 * pulse_points:
+                      pulse_end_points - pulse_points] = pi_pulseI_x
+    y_waveform_1.wave[pulse_end_points - 2 * pulse_points:
+                      pulse_end_points - pulse_points] = pi_pulseQ_x
+    x_waveform_1.wave[pulse_end_points - pulse_points:
+                      pulse_end_points] = pi_pulseI_x
+    y_waveform_1.wave[pulse_end_points - pulse_points:
+                      pulse_end_points] = pi_pulseQ_x
+    if pulse_mod:
+        x_waveform_1.add_marker(1, pulse_end_points - pulse_mod_points,
+                                pulse_mod_points)
+    elem_1.add_waveform(x_waveform_1)
+    elem_1.add_waveform(y_waveform_1)
+    elem_1.add_waveform(readout_first)
+    seq.add_element(elem_1)
 
-    # elem_2 = Element()
-    # x_waveform_2 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_2 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_2.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseI_y
-    # y_waveform_2.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseQ_y
-    # x_waveform_2.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_pulseI_y
-    # y_waveform_2.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_pulseQ_y
-    # if pulse_mod:
-    #     x_waveform_2.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                             pulse_mod_points)
-    # elem_2.add_waveform(x_waveform_2)
-    # elem_2.add_waveform(y_waveform_2)
-    # elem_2.add_waveform(readout_waveform)
-    # seq.add_element(elem_2)
+    elem_2 = Element()
+    x_waveform_2 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_2 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_2.wave[pulse_end_points - 2 * pulse_points:
+                      pulse_end_points - pulse_points] = pi_pulseI_y
+    y_waveform_2.wave[pulse_end_points - 2 * pulse_points:
+                      pulse_end_points - pulse_points] = pi_pulseQ_y
+    x_waveform_2.wave[pulse_end_points - pulse_points:
+                      pulse_end_points] = pi_pulseI_y
+    y_waveform_2.wave[pulse_end_points - pulse_points:
+                      pulse_end_points] = pi_pulseQ_y
+    if pulse_mod:
+        x_waveform_2.add_marker(1, pulse_end_points - pulse_mod_points,
+                                pulse_mod_points)
+    elem_2.add_waveform(x_waveform_2)
+    elem_2.add_waveform(y_waveform_2)
+    elem_2.add_waveform(readout_waveform)
+    seq.add_element(elem_2)
 
-    # elem_3 = Element()
-    # x_waveform_3 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_3 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_3.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseI_x
-    # y_waveform_3.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseQ_x
-    # x_waveform_3.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_pulseI_y
-    # y_waveform_3.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_pulseQ_y
-    # if pulse_mod:
-    #     x_waveform_3.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                             pulse_mod_points)
-    # elem_3.add_waveform(x_waveform_3)
-    # elem_3.add_waveform(y_waveform_3)
-    # elem_3.add_waveform(readout_waveform)
-    # seq.add_element(elem_3)
+    elem_3 = Element()
+    x_waveform_3 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_3 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_3.wave[pulse_end_points - 2 * pulse_points:
+                      pulse_end_points - pulse_points] = pi_pulseI_x
+    y_waveform_3.wave[pulse_end_points - 2 * pulse_points:
+                      pulse_end_points - pulse_points] = pi_pulseQ_x
+    x_waveform_3.wave[pulse_end_points - pulse_points:
+                      pulse_end_points] = pi_pulseI_y
+    y_waveform_3.wave[pulse_end_points - pulse_points:
+                      pulse_end_points] = pi_pulseQ_y
+    if pulse_mod:
+        x_waveform_3.add_marker(1, pulse_end_points - pulse_mod_points,
+                                pulse_mod_points)
+    elem_3.add_waveform(x_waveform_3)
+    elem_3.add_waveform(y_waveform_3)
+    elem_3.add_waveform(readout_waveform)
+    seq.add_element(elem_3)
 
-    # elem_4 = Element()
-    # x_waveform_4 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_4 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_4.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseI_y
-    # y_waveform_4.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseQ_y
-    # x_waveform_4.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_pulseI_x
-    # y_waveform_4.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_pulseQ_x
-    # if pulse_mod:
-    #     x_waveform_4.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                             pulse_mod_points)
-    # elem_4.add_waveform(x_waveform_4)
-    # elem_4.add_waveform(y_waveform_4)
-    # elem_4.add_waveform(readout_waveform)
-    # seq.add_element(elem_4)
+    elem_4 = Element()
+    x_waveform_4 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_4 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_4.wave[pulse_end_points - 2 * pulse_points:
+                      pulse_end_points - pulse_points] = pi_pulseI_y
+    y_waveform_4.wave[pulse_end_points - 2 * pulse_points:
+                      pulse_end_points - pulse_points] = pi_pulseQ_y
+    x_waveform_4.wave[pulse_end_points - pulse_points:
+                      pulse_end_points] = pi_pulseI_x
+    y_waveform_4.wave[pulse_end_points - pulse_points:
+                      pulse_end_points] = pi_pulseQ_x
+    if pulse_mod:
+        x_waveform_4.add_marker(1, pulse_end_points - pulse_mod_points,
+                                pulse_mod_points)
+    elem_4.add_waveform(x_waveform_4)
+    elem_4.add_waveform(y_waveform_4)
+    elem_4.add_waveform(readout_waveform)
+    seq.add_element(elem_4)
 
-    # elem_5 = Element()
-    # x_waveform_5 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_5 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_5.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_half_pulseI_x
-    # y_waveform_5.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_half_pulseQ_x
-    # if pulse_mod:
-    #     x_waveform_5.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                             pulse_mod_points)
-    # elem_5.add_waveform(x_waveform_5)
-    # elem_5.add_waveform(y_waveform_5)
-    # elem_5.add_waveform(readout_waveform)
-    # seq.add_element(elem_5)
+    elem_5 = Element()
+    x_waveform_5 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_5 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_5.wave[pulse_end_points - 2 * pulse_points:
+                      pulse_end_points - pulse_points] = pi_half_pulseI_x
+    y_waveform_5.wave[pulse_end_points - 2 * pulse_points:
+                      pulse_end_points - pulse_points] = pi_half_pulseQ_x
+    if pulse_mod:
+        x_waveform_5.add_marker(1, pulse_end_points - pulse_mod_points,
+                                pulse_mod_points)
+    elem_5.add_waveform(x_waveform_5)
+    elem_5.add_waveform(y_waveform_5)
+    elem_5.add_waveform(readout_waveform)
+    seq.add_element(elem_5)
 
-    # elem_6 = Element()
-    # x_waveform_6 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_6 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_6.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_half_pulseI_y
-    # y_waveform_6.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_half_pulseQ_y
-    # if pulse_mod:
-    #     x_waveform_6.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                             pulse_mod_points)
-    # elem_6.add_waveform(x_waveform_6)
-    # elem_6.add_waveform(y_waveform_6)
-    # elem_6.add_waveform(readout_waveform)
-    # seq.add_element(elem_6)
+    elem_6 = Element()
+    x_waveform_6 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_6 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_6.wave[pulse_end_points - 2 * pulse_points:
+                      pulse_end_points - pulse_points] = pi_half_pulseI_y
+    y_waveform_6.wave[pulse_end_points - 2 * pulse_points:
+                      pulse_end_points - pulse_points] = pi_half_pulseQ_y
+    if pulse_mod:
+        x_waveform_6.add_marker(1, pulse_end_points - pulse_mod_points,
+                                pulse_mod_points)
+    elem_6.add_waveform(x_waveform_6)
+    elem_6.add_waveform(y_waveform_6)
+    elem_6.add_waveform(readout_waveform)
+    seq.add_element(elem_6)
 
-    # elem_7 = Element()
-    # x_waveform_7 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_7 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_7.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_half_pulseI_x
-    # y_waveform_7.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_half_pulseQ_x
-    # x_waveform_7.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_half_pulseI_y
-    # y_waveform_7.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_half_pulseI_y
-    # if pulse_mod:
-    #     x_waveform_7.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                             pulse_mod_points)
-    # elem_7.add_waveform(x_waveform_7)
-    # elem_7.add_waveform(y_waveform_7)
-    # elem_7.add_waveform(readout_waveform)
-    # seq.add_element(elem_7)
+    elem_7 = Element()
+    x_waveform_7 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_7 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_7.wave[pulse_end_points - 2 * pulse_points:
+                      pulse_end_points - pulse_points] = pi_half_pulseI_x
+    y_waveform_7.wave[pulse_end_points - 2 * pulse_points:
+                      pulse_end_points - pulse_points] = pi_half_pulseQ_x
+    x_waveform_7.wave[pulse_end_points - pulse_points:
+                      pulse_end_points] = pi_half_pulseI_y
+    y_waveform_7.wave[pulse_end_points - pulse_points:
+                      pulse_end_points] = pi_half_pulseI_y
+    if pulse_mod:
+        x_waveform_7.add_marker(1, pulse_end_points - pulse_mod_points,
+                                pulse_mod_points)
+    elem_7.add_waveform(x_waveform_7)
+    elem_7.add_waveform(y_waveform_7)
+    elem_7.add_waveform(readout_waveform)
+    seq.add_element(elem_7)
 
-    # elem_8 = Element()
-    # x_waveform_8 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_8 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_8.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_half_pulseI_y
-    # y_waveform_8.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_half_pulseQ_y
-    # x_waveform_8.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_half_pulseI_x
-    # y_waveform_8.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_half_pulseI_x
-    # if pulse_mod:
-    #     x_waveform_8.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                             pulse_mod_points)
-    # elem_8.add_waveform(x_waveform_8)
-    # elem_8.add_waveform(y_waveform_8)
-    # elem_8.add_waveform(readout_waveform)
-    # seq.add_element(elem_8)
+    elem_8 = Element()
+    x_waveform_8 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_8 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_8.wave[pulse_end_points - 2 * pulse_points:
+                      pulse_end_points - pulse_points] = pi_half_pulseI_y
+    y_waveform_8.wave[pulse_end_points - 2 * pulse_points:
+                      pulse_end_points - pulse_points] = pi_half_pulseQ_y
+    x_waveform_8.wave[pulse_end_points - pulse_points:
+                      pulse_end_points] = pi_half_pulseI_x
+    y_waveform_8.wave[pulse_end_points - pulse_points:
+                      pulse_end_points] = pi_half_pulseI_x
+    if pulse_mod:
+        x_waveform_8.add_marker(1, pulse_end_points - pulse_mod_points,
+                                pulse_mod_points)
+    elem_8.add_waveform(x_waveform_8)
+    elem_8.add_waveform(y_waveform_8)
+    elem_8.add_waveform(readout_waveform)
+    seq.add_element(elem_8)
 
-    # elem_9 = Element()
-    # x_waveform_9 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_9 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_9.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_half_pulseI_x
-    # y_waveform_9.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_half_pulseQ_x
-    # x_waveform_9.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_pulseI_y
-    # y_waveform_9.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_pulseI_y
-    # if pulse_mod:
-    #     x_waveform_9.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                             pulse_mod_points)
-    # elem_9.add_waveform(x_waveform_9)
-    # elem_9.add_waveform(y_waveform_9)
-    # elem_9.add_waveform(readout_waveform)
-    # seq.add_element(elem_9)
+    elem_9 = Element()
+    x_waveform_9 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_9 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_9.wave[pulse_end_points - 2 * pulse_points:
+                      pulse_end_points - pulse_points] = pi_half_pulseI_x
+    y_waveform_9.wave[pulse_end_points - 2 * pulse_points:
+                      pulse_end_points - pulse_points] = pi_half_pulseQ_x
+    x_waveform_9.wave[pulse_end_points - pulse_points:
+                      pulse_end_points] = pi_pulseI_y
+    y_waveform_9.wave[pulse_end_points - pulse_points:
+                      pulse_end_points] = pi_pulseI_y
+    if pulse_mod:
+        x_waveform_9.add_marker(1, pulse_end_points - pulse_mod_points,
+                                pulse_mod_points)
+    elem_9.add_waveform(x_waveform_9)
+    elem_9.add_waveform(y_waveform_9)
+    elem_9.add_waveform(readout_waveform)
+    seq.add_element(elem_9)
 
-    # elem_10 = Element()
-    # x_waveform_10 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_10 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_10.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_half_pulseI_y
-    # y_waveform_10.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_half_pulseQ_y
-    # x_waveform_10.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_pulseI_y
-    # y_waveform_10.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_pulseI_y
-    # if pulse_mod:
-    #     x_waveform_10.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                              pulse_mod_points)
-    # elem_10.add_waveform(x_waveform_10)
-    # elem_10.add_waveform(y_waveform_10)
-    # elem_10.add_waveform(readout_waveform)
-    # seq.add_element(elem_10)
+    elem_10 = Element()
+    x_waveform_10 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_10 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_10.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_half_pulseI_y
+    y_waveform_10.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_half_pulseQ_y
+    x_waveform_10.wave[pulse_end_points - pulse_points:
+                       pulse_end_points] = pi_pulseI_y
+    y_waveform_10.wave[pulse_end_points - pulse_points:
+                       pulse_end_points] = pi_pulseI_y
+    if pulse_mod:
+        x_waveform_10.add_marker(1, pulse_end_points - pulse_mod_points,
+                                 pulse_mod_points)
+    elem_10.add_waveform(x_waveform_10)
+    elem_10.add_waveform(y_waveform_10)
+    elem_10.add_waveform(readout_waveform)
+    seq.add_element(elem_10)
 
-    # elem_11 = Element()
-    # x_waveform_11 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_11 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_11.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseI_x
-    # y_waveform_11.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseQ_x
-    # x_waveform_11.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_half_pulseI_y
-    # y_waveform_11.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_half_pulseI_y
-    # if pulse_mod:
-    #     x_waveform_11.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                              pulse_mod_points)
-    # elem_11.add_waveform(x_waveform_11)
-    # elem_11.add_waveform(y_waveform_11)
-    # elem_11.add_waveform(readout_waveform)
-    # seq.add_element(elem_11)
+    elem_11 = Element()
+    x_waveform_11 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_11 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_11.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_pulseI_x
+    y_waveform_11.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_pulseQ_x
+    x_waveform_11.wave[pulse_end_points - pulse_points:
+                       pulse_end_points] = pi_half_pulseI_y
+    y_waveform_11.wave[pulse_end_points - pulse_points:
+                       pulse_end_points] = pi_half_pulseI_y
+    if pulse_mod:
+        x_waveform_11.add_marker(1, pulse_end_points - pulse_mod_points,
+                                 pulse_mod_points)
+    elem_11.add_waveform(x_waveform_11)
+    elem_11.add_waveform(y_waveform_11)
+    elem_11.add_waveform(readout_waveform)
+    seq.add_element(elem_11)
 
-    # elem_12 = Element()
-    # x_waveform_12 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_12 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_12.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseI_y
-    # y_waveform_12.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseQ_y
-    # x_waveform_12.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_half_pulseI_x
-    # y_waveform_12.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_half_pulseI_x
-    # if pulse_mod:
-    #     x_waveform_12.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                              pulse_mod_points)
-    # elem_12.add_waveform(x_waveform_12)
-    # elem_12.add_waveform(y_waveform_12)
-    # elem_12.add_waveform(readout_waveform)
-    # seq.add_element(elem_12)
+    elem_12 = Element()
+    x_waveform_12 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_12 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_12.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_pulseI_y
+    y_waveform_12.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_pulseQ_y
+    x_waveform_12.wave[pulse_end_points - pulse_points:
+                       pulse_end_points] = pi_half_pulseI_x
+    y_waveform_12.wave[pulse_end_points - pulse_points:
+                       pulse_end_points] = pi_half_pulseI_x
+    if pulse_mod:
+        x_waveform_12.add_marker(1, pulse_end_points - pulse_mod_points,
+                                 pulse_mod_points)
+    elem_12.add_waveform(x_waveform_12)
+    elem_12.add_waveform(y_waveform_12)
+    elem_12.add_waveform(readout_waveform)
+    seq.add_element(elem_12)
 
-    # elem_13 = Element()
-    # x_waveform_13 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_13 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_13.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_half_pulseI_x
-    # y_waveform_13.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_half_pulseQ_x
-    # x_waveform_13.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_pulseI_x
-    # y_waveform_13.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_pulseI_x
-    # if pulse_mod:
-    #     x_waveform_13.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                              pulse_mod_points)
-    # elem_13.add_waveform(x_waveform_13)
-    # elem_13.add_waveform(y_waveform_13)
-    # elem_13.add_waveform(readout_waveform)
-    # seq.add_element(elem_13)
+    elem_13 = Element()
+    x_waveform_13 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_13 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_13.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_half_pulseI_x
+    y_waveform_13.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_half_pulseQ_x
+    x_waveform_13.wave[pulse_end_points - pulse_points:
+                       pulse_end_points] = pi_pulseI_x
+    y_waveform_13.wave[pulse_end_points - pulse_points:
+                       pulse_end_points] = pi_pulseI_x
+    if pulse_mod:
+        x_waveform_13.add_marker(1, pulse_end_points - pulse_mod_points,
+                                 pulse_mod_points)
+    elem_13.add_waveform(x_waveform_13)
+    elem_13.add_waveform(y_waveform_13)
+    elem_13.add_waveform(readout_waveform)
+    seq.add_element(elem_13)
 
-    # elem_14 = Element()
-    # x_waveform_14 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_14 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_14.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseI_x
-    # y_waveform_14.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseQ_x
-    # x_waveform_14.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_half_pulseI_x
-    # y_waveform_14.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_half_pulseI_x
-    # if pulse_mod:
-    #     x_waveform_14.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                              pulse_mod_points)
-    # elem_14.add_waveform(x_waveform_14)
-    # elem_14.add_waveform(y_waveform_14)
-    # elem_14.add_waveform(readout_waveform)
-    # seq.add_element(elem_14)
+    elem_14 = Element()
+    x_waveform_14 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_14 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_14.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_pulseI_x
+    y_waveform_14.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_pulseQ_x
+    x_waveform_14.wave[pulse_end_points - pulse_points:
+                       pulse_end_points] = pi_half_pulseI_x
+    y_waveform_14.wave[pulse_end_points - pulse_points:
+                       pulse_end_points] = pi_half_pulseI_x
+    if pulse_mod:
+        x_waveform_14.add_marker(1, pulse_end_points - pulse_mod_points,
+                                 pulse_mod_points)
+    elem_14.add_waveform(x_waveform_14)
+    elem_14.add_waveform(y_waveform_14)
+    elem_14.add_waveform(readout_waveform)
+    seq.add_element(elem_14)
 
-    # elem_15 = Element()
-    # x_waveform_15 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_15 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_15.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_half_pulseI_y
-    # y_waveform_15.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_half_pulseQ_y
-    # x_waveform_15.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_pulseI_y
-    # y_waveform_15.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_pulseI_y
-    # if pulse_mod:
-    #     x_waveform_15.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                              pulse_mod_points)
-    # elem_15.add_waveform(x_waveform_15)
-    # elem_15.add_waveform(y_waveform_15)
-    # elem_15.add_waveform(readout_waveform)
-    # seq.add_element(elem_15)
+    elem_15 = Element()
+    x_waveform_15 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_15 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_15.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_half_pulseI_y
+    y_waveform_15.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_half_pulseQ_y
+    x_waveform_15.wave[pulse_end_points - pulse_points:
+                       pulse_end_points] = pi_pulseI_y
+    y_waveform_15.wave[pulse_end_points - pulse_points:
+                       pulse_end_points] = pi_pulseI_y
+    if pulse_mod:
+        x_waveform_15.add_marker(1, pulse_end_points - pulse_mod_points,
+                                 pulse_mod_points)
+    elem_15.add_waveform(x_waveform_15)
+    elem_15.add_waveform(y_waveform_15)
+    elem_15.add_waveform(readout_waveform)
+    seq.add_element(elem_15)
 
-    # elem_16 = Element()
-    # x_waveform_16 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_16 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_16.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseI_y
-    # y_waveform_16.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseQ_y
-    # x_waveform_16.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_half_pulseI_y
-    # y_waveform_16.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_half_pulseI_y
-    # if pulse_mod:
-    #     x_waveform_16.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                              pulse_mod_points)
-    # elem_16.add_waveform(x_waveform_16)
-    # elem_16.add_waveform(y_waveform_16)
-    # elem_16.add_waveform(readout_waveform)
-    # seq.add_element(elem_16)
+    elem_16 = Element()
+    x_waveform_16 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_16 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_16.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_pulseI_y
+    y_waveform_16.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_pulseQ_y
+    x_waveform_16.wave[pulse_end_points - pulse_points:
+                       pulse_end_points] = pi_half_pulseI_y
+    y_waveform_16.wave[pulse_end_points - pulse_points:
+                       pulse_end_points] = pi_half_pulseI_y
+    if pulse_mod:
+        x_waveform_16.add_marker(1, pulse_end_points - pulse_mod_points,
+                                 pulse_mod_points)
+    elem_16.add_waveform(x_waveform_16)
+    elem_16.add_waveform(y_waveform_16)
+    elem_16.add_waveform(readout_waveform)
+    seq.add_element(elem_16)
 
-    # elem_17 = Element()
-    # x_waveform_17 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_17 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_17.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseI_x
-    # y_waveform_17.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseQ_x
-    # if pulse_mod:
-    #     x_waveform_17.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                              pulse_mod_points)
-    # elem_17.add_waveform(x_waveform_17)
-    # elem_17.add_waveform(y_waveform_17)
-    # elem_17.add_waveform(readout_waveform)
-    # seq.add_element(elem_17)
+    elem_17 = Element()
+    x_waveform_17 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_17 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_17.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_pulseI_x
+    y_waveform_17.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_pulseQ_x
+    if pulse_mod:
+        x_waveform_17.add_marker(1, pulse_end_points - pulse_mod_points,
+                                 pulse_mod_points)
+    elem_17.add_waveform(x_waveform_17)
+    elem_17.add_waveform(y_waveform_17)
+    elem_17.add_waveform(readout_waveform)
+    seq.add_element(elem_17)
 
-    # elem_18 = Element()
-    # x_waveform_18 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_18 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_18.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseI_y
-    # y_waveform_18.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_pulseQ_y
-    # if pulse_mod:
-    #     x_waveform_18.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                              pulse_mod_points)
-    # elem_18.add_waveform(x_waveform_18)
-    # elem_18.add_waveform(y_waveform_18)
-    # elem_18.add_waveform(readout_waveform)
-    # seq.add_element(elem_18)
+    elem_18 = Element()
+    x_waveform_18 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_18 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_18.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_pulseI_y
+    y_waveform_18.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_pulseQ_y
+    if pulse_mod:
+        x_waveform_18.add_marker(1, pulse_end_points - pulse_mod_points,
+                                 pulse_mod_points)
+    elem_18.add_waveform(x_waveform_18)
+    elem_18.add_waveform(y_waveform_18)
+    elem_18.add_waveform(readout_waveform)
+    seq.add_element(elem_18)
 
-    # elem_19 = Element()
-    # x_waveform_19 = Waveform(length=total_points, channel=channels[0])
-    # y_waveform_19 = Waveform(length=total_points, channel=channels[1])
-    # x_waveform_19.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_half_pulseI_x
-    # y_waveform_19.wave[pulse_end_points-2*pulse_points:pulse_end_points-pulse_points] = pi_half_pulseI_x
-    # x_waveform_19.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_half_pulseI_x
-    # y_waveform_19.wave[pulse_end_points-pulse_points:pulse_end_points] = pi_half_pulseI_x
-    # if pulse_mod:
-    #     x_waveform_19.add_marker(1, pulse_end_points - pulse_mod_points,
-    #                              pulse_mod_points)
-    # elem_19.add_waveform(x_waveform_19)
-    # elem_19.add_waveform(y_waveform_19)
-    # elem_19.add_waveform(readout_waveform)
-    # seq.add_element(elem_19)
+    elem_19 = Element()
+    x_waveform_19 = Waveform(length=total_points, channel=channels[0])
+    y_waveform_19 = Waveform(length=total_points, channel=channels[1])
+    x_waveform_19.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_half_pulseI_x
+    y_waveform_19.wave[pulse_end_points - 2 * pulse_points:
+                       pulse_end_points - pulse_points] = pi_half_pulseI_x
+    x_waveform_19.wave[pulse_end_points - pulse_points:
+                       pulse_end_points] = pi_half_pulseI_x
+    y_waveform_19.wave[pulse_end_points - pulse_points:
+                       pulse_end_points] = pi_half_pulseI_x
+    if pulse_mod:
+        x_waveform_19.add_marker(1, pulse_end_points - pulse_mod_points,
+                                 pulse_mod_points)
+    elem_19.add_waveform(x_waveform_19)
+    elem_19.add_waveform(y_waveform_19)
+    elem_19.add_waveform(readout_waveform)
+    seq.add_element(elem_19)
 
     elem_20 = Element()
     x_waveform_20 = Waveform(length=total_points, channel=channels[0])

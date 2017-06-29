@@ -100,15 +100,21 @@ def get_current_qubit():
     return c_dict['current_qubit']
 
 
-def get_allowed_keys():
+def get_allowed_keys(vna=True, alazar=True, pulse=True):
     """
     Gets the keys allowed in the calibration dictionary. These are hard coded.
 
     Returns:
         set of keys
     """
-    return set().union(vna_dict_keys, alazar_dict_keys,
-                       default_pulse_dict.keys())
+    keys_list = []
+    if vna:
+        keys_list.extend(vna_dict_keys)
+    if alazar:
+        keys_list.extend(alazar_dict_keys)
+    if pulse:
+        keys_list.extend(default_pulse_dict.keys())
+    return keys_list
 
 
 def set_calibration_val(key, qubit_value, qubit_index=None):

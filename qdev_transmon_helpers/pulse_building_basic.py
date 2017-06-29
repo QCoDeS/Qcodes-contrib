@@ -1,26 +1,12 @@
 from . import make_readout_wf, get_calibration_dict, \
     make_time_varying_sequence, make_multi_varying_sequence, \
     make_time_multi_varying_sequence, \
-    cos_wave, sin_wave_negative, flat, gaussian, SSB_Q_gaussian, \
+    cos_wave, sin_wave, flat, gaussian, SSB_Q_gaussian, \
     SSB_I_gaussian
 from . import Segment, Waveform, Element, Sequence
 
 
 # TODO: checks
-
-
-def make_readout_seq(channels=[4]):
-    """
-    Square pulse duting readout time with one marker at start
-    """
-    waveform = make_readout_wf(channel=channels[0])
-    element = Element()
-    element.add_waveform(waveform)
-    readout_sequence = Sequence(name='plain_readout', variable='')
-    readout_sequence.add_element(element)
-    # readout_sequence.check()
-    return readout_sequence
-
 
 ################################################################
 # Spectroscopy
@@ -35,7 +21,7 @@ def make_calib_SSB_sequence(freq, amp=1, dur=None, channels=[1, 2]):
     waveform_i = Waveform(channel=channels[0])
     waveform_q = Waveform(channel=channels[1])
     waveform_i.wave = cos_wave(freq, amp, dur, p_dict['sample_rate'])
-    waveform_q.wave = sin_wave_negative(freq, amp, dur, p_dict['sample_rate'])
+    waveform_q.wave = sin_wave(freq, amp, dur, p_dict['sample_rate'])
     element.add_waveform(waveform_i)
     element.add_waveform(waveform_q)
     seq.add_element(element)
@@ -62,8 +48,9 @@ def make_spectrscopy_SSB_sequence(start, stop, step, channels=[1, 2, 4],
         func_args={'amp': 1, 'dur': p_dict['qubit_spec_time']},
         time_markers=pulse_mod_markers)
     variable_qubit_drive_Q_segment = Segment(
-        name='SSB_drive_Q', gen_func=sin_wave_negative,
-        func_args={'amp': 1, 'dur': p_dict['qubit_spec_time']})
+        name='SSB_drive_Q', gen_func=sin_wave,
+        func_args={'amp': 1, 'dur': p_dict['qubit_spec_time'],
+                   'positive': False})
     after_qubit_wait_segment = Segment(
         name='wait', gen_func=flat,
         func_args={'amp': 0, 'dur': time_after_qubit},
@@ -181,8 +168,8 @@ def make_rabi_SSB_sequence(start, stop, step, SSBfreq, channels=[1, 2, 4],
             name='square_SSB_pi_I_pulse', gen_func=cos_wave,
             func_args={'amp': pi_amp, 'freq': SSBfreq})
         variable_pi_Q_segment = Segment(
-            name='square__SSB_pi_Q_pulse', gen_func=sin_wave_negative,
-            func_args={'amp': pi_amp, 'freq': SSBfreq})
+            name='square__SSB_pi_Q_pulse', gen_func=sin_wave,
+            func_args={'amp': pi_amp, 'freq': SSBfreq, 'positive': False})
         variable_arg = 'dur'
 
     wait_segment = Segment(
@@ -318,8 +305,9 @@ def make_t1_SSB_sequence(start, stop, step, SSBfreq, pi_dur=None,
             name='square_SSB_pi_I_pulse', gen_func=cos_wave,
             func_args={'amp': pi_amp, 'freq': SSBfreq, 'dur': pi_dur})
         pi_Q_segment = Segment(
-            name='square_SSB_pi_Q_pulse', gen_func=sin_wave_negative,
-            func_args={'amp': pi_amp, 'freq': SSBfreq, 'dur': pi_dur})
+            name='square_SSB_pi_Q_pulse', gen_func=sin_wave,
+            func_args={'amp': pi_amp, 'freq': SSBfreq, 'dur': pi_dur,
+                       'positive': False})
 
     variable_wait_segment = Segment(
         name='pulse_readout_delay', gen_func=flat,
@@ -472,9 +460,9 @@ def make_ramsey_SSB_sequence(start, stop, step, SSBfreq, pi_half_amp=None,
             func_args={'amp': pi_half_amp, 'freq': SSBfreq,
                        'dur': pi_half_dur})
         pi_half_Q_segment = Segment(
-            name='square_SSB_pi_half_Q_pulse', gen_func=sin_wave_negative,
+            name='square_SSB_pi_half_Q_pulse', gen_func=sin_wave,
             func_args={'amp': pi_half_amp, 'freq': SSBfreq,
-                       'dur': pi_half_dur})
+                       'dur': pi_half_dur, 'positive': False})
 
     variable_wait_segment = Segment(
         name='pulse_readout_delay', gen_func=flat,
