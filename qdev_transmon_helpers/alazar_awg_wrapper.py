@@ -1,4 +1,5 @@
-from . import check_sample_rate, make_save_send_load_awg_file
+from . import check_sample_rate, make_save_send_load_awg_file, \
+    get_pulse_location, get_latest_counter, save_sequence
 
 
 def set_up_sequence(awg, alazar, acq_controllers, sequence, seq_mode='on'):
@@ -16,7 +17,16 @@ def set_up_sequence(awg, alazar, acq_controllers, sequence, seq_mode='on'):
         seq_mode (default 'on')
     """
     check_sample_rate(awg)
-    make_save_send_load_awg_file(awg, sequence)
+    pulse_location = get_pulse_location()
+    try:
+        num = get_latest_counter(pulse_location) + 1
+    except (FileNotFoundError, OSError):
+        num = 0
+    name = '{0:03d}_{name}.awg'.format(num, name=sequence.name)
+    file_name = pulse_location + name
+    make_save_send_load_awg_file(awg, sequence, file_name)
+    save_sequence(file_name)
+    awg.current_seq(name)
     alazar.seq_mode(seq_mode)
     record_num = len(sequence)
     if seq_mode is 'on':

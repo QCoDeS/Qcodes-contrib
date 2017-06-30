@@ -1,8 +1,9 @@
 import pprint
 import collections
 from . import get_temp_dict_location
-
+import os
 import pickle
+import copy
 import numpy as np
 from . import get_qubit_count
 
@@ -21,7 +22,8 @@ alazar_dict_keys = ['int_time', 'int_delay', 'cavity_freq',
 
 default_pulse_dict = {'cycle_time': 20e-6, 'sample_rate': 1e9,
                       'pulse_end': 10e-6, 'pulse_readout_delay': 30e-9,
-                      'readout_time': 4e-6, 'marker_time': 500e-9,
+                      'readout_time': 4e-6, 'readout_amp': 1, 
+                      'marker_time': 500e-9,
                       'marker_readout_delay': 0, 'qubit_spec_time': 1e-6,
                       'pulse_mod_time': 1.5e-6, 'pi_pulse_amp': 1,
                       'pi_half_pulse_amp': 0.5, 'pi_pulse_sigma': None,
@@ -30,8 +32,12 @@ default_pulse_dict = {'cycle_time': 20e-6, 'sample_rate': 1e9,
                       'z_pulse_amp': None, 'z_pulse_dur': None,
                       'z_half_pulse_amp': None, 'z_half_pulse_dur': None}
 
-default_calib_dict = collections.defaultdict(lambda: None,
-                                             **default_pulse_dict)
+
+def dd_f():
+    return None
+
+
+default_calib_dict = collections.defaultdict(dd_f)
 
 
 def get_calibration_dict():
@@ -44,11 +50,14 @@ def get_calibration_dict():
     """
     path = get_temp_dict_location()
     file_name = 'calibration_dict.p'
-    try:
+    if os.path.exists(path + file_name):
         calibration_dict = pickle.load(open(path + file_name, "rb"))
-    except FileNotFoundError:
+    else:
         print('calib dict not found, making one')
         calibration_dict = default_calib_dict
+        for k in default_pulse_dict:
+            v = np.array([default_pulse_dict[k]] * get_qubit_count())
+            calibration_dict[k] = v
         pickle.dump(calibration_dict, open(path + file_name, 'wb'))
     return calibration_dict
 
@@ -64,13 +73,16 @@ def _update_calibration_dict(update_dict):
     """
     path = get_temp_dict_location()
     file_name = 'calibration_dict.p'
-    try:
-        dict_to_update = pickle.load(open(path + file_name, "rb"))
-    except FileNotFoundError:
-        dict_to_update = {}
-
-    dict_to_update.update(update_dict)
-    pickle.dump(dict_to_update, open(path + file_name, 'wb'))
+    if os.path.exists(path + file_name):
+        calibration_dict = pickle.load(open(path + file_name, "rb"))
+    else:
+        print('calib dict not found, making one')
+        calibration_dict = default_calib_dict
+        for k in default_pulse_dict:
+            v = np.array([default_pulse_dict[k]] * get_qubit_count())
+            calibration_dict[k] = v
+    calibration_dict.update(update_dict)
+    pickle.dump(calibration_dict, open(path + file_name, 'wb'))
 
 
 def set_current_qubit(index):
@@ -134,7 +146,7 @@ def set_calibration_val(key, qubit_value, qubit_index=None):
                         ''.format(key, allowed_keys))
     c_dict = get_calibration_dict()
     if key in c_dict:
-        vals = c_dict[key].copy()
+        vals = copy.copy(c_dict[key])
     else:
         vals = np.zeros(get_qubit_count())
     vals[qubit_index or c_dict['current_qubit']] = qubit_value

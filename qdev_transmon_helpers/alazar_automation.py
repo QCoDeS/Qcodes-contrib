@@ -2,11 +2,11 @@ import numpy as np
 import time
 import datetime
 
-from . import do_cavity_freq_sweep, find_extreme, \
-    set_calibration_val, set_single_demod_freq, make_ssb_qubit_seq, \
-    get_calibration_val, measure_ssb, set_up_sequence, \
-    make_rabi_gaussian_sequence, make_rabi_square_sequence, sweep1d, \
-    sweep_2d_ssb
+from . import do_cavity_freq_sweep, find_extreme, set_calibration_val, \
+    set_single_demod_freq, make_spectrscopy_SSB_sequence, \
+    get_calibration_val, measure_ssb, set_up_sequence, make_rabi_sequence, \
+    sweep1d, make_t1_sequence, measure, make_ramsey_sequence, \
+    sweep_2d_ssb, check_seq_uploaded
 
 # TODO: find qubit to compare to average
 # TODO: complete do_tracking_ssb_gate_sweep
@@ -15,6 +15,7 @@ from . import do_cavity_freq_sweep, find_extreme, \
 #     qubit is there and good enough
 # TODO: write calibrate pi pulse, get_t1, get_t2s, do_ramsey
 # TODO: add rabis, t1, t2 and anharmonicity option to tracking sweeps
+# TODO: drag
 
 
 def calibrate_cavity(cavity, localos, acq_ctrl, alazar, centre_freq=None,
@@ -72,7 +73,8 @@ def calibrate_cavity(cavity, localos, acq_ctrl, alazar, centre_freq=None,
 
 
 def find_qubit(awg, alazar, acq_ctrl, qubit, start_freq=4e9, stop_freq=6e9,
-               qubit_power=None, calib_update=True):
+               qubit_power=None, calib_update=True, channels=[1, 2, 3, 4],
+               pulse_mod=False):
     """
     Automation function which searches in a specified frequency range for a
     qubit.
@@ -97,8 +99,12 @@ def find_qubit(awg, alazar, acq_ctrl, qubit, start_freq=4e9, stop_freq=6e9,
             resonator
         qubit_mag: the magnitude of this response
     """
-    if 'ssb_qubit' not in acq_ctrl.acquisition.setpoint_names[0][0]:
-        ssb_seq = make_ssb_qubit_seq()
+    seq_uploaded = check_seq_uploaded(
+        awg, 'spectroscopy', {'pulse_mod': pulse_mod},
+        start=0, stop=200e-6, step=1e-6)
+    if not seq_uploaded:
+        ssb_seq = make_spectrscopy_SSB_sequence(
+            0, 200e-6, 1e-6, channels=channels, pulse_mod=pulse_mod)
         set_up_sequence(awg, alazar, [acq_ctrl], ssb_seq, seq_mode=1)
     else:
         alazar.seq_mode(1)
@@ -183,41 +189,26 @@ def do_tracking_ssb_gate_sweep(qubit, cavity, localos, rec_acq_ctrl,
     raise NotImplementedError
 
 
-def do_rabis(awg, alazar, acq_ctrl, qubit, start_dur=0, stop_dur=200e-9,
-             step_dur=1e-9, pi_pulse_amp=None, qubit_power=None,
-             freq_centre=None, freq_pm=10e6, freq_step=2e6, live_plot=True,
-             calib_update=True, gaussian=False, sigma_cutoff=None,
-             pulse_mod=False):
+def do_rabis(awg, alazar, acq_ctrl, qubit, start=0, stop=200e-9,
+             step=1e-9, qubit_power=None, SSBfreq=None,
+             qubit_freq=None, freq_pm=10e6, freq_step=2e6, gaussian=False,
+             pulse_mod=False, channels=[1, 2, 3, 4]):
     """
     Automated function which uploads rabis to the awg and then
     """
-    if gaussian:
-        rabis_uploaded = ('gaussian_drive_duration' is
-                          acq_ctrl.acquisition.setpoint_names[0][0])
-    else:
-        rabis_uploaded = ('drive_duration' is
-                          acq_ctrl.acquisition.setpoint_names[0][0])
-    if not rabis_uploaded:
-        pi_pulse_amp = pi_pulse_amp or get_calibration_val(
-            'pi_pulse_amp')
-        sigma_cutoff = sigma_cutoff or get_calibration_val(
-            'pi_pulse_sigma_cutoff')
-        if gaussian:
-            rabi_seq = make_rabi_gaussian_sequence(pi_pulse_amp,
-                                                   sigma_cutoff,
-                                                   start=start_dur,
-                                                   stop=stop_dur,
-                                                   step=step_dur,
-                                                   pulse_mod=pulse_mod)
-        else:
-            rabi_seq = make_rabi_square_sequence(pi_pulse_amp,
-                                                 start=start_dur,
-                                                 stop=stop_dur,
-                                                 step=step_dur,
-                                                 pulse_mod=pulse_mod)
-        set_up_sequence(awg, alazar, [acq_ctrl], rabi_seq, seq_mode=1)
+    seq_uploaded = check_seq_uploaded(
+        awg, 'rabi', {'SSBfreq': SSBfreq, 'gaussian': gaussian,
+                      'pulse_mod': pulse_mod},
+        start=start, stop=stop, step=step)
+
+    if not seq_uploaded:
+        seq_to_upload = make_rabi_sequence(
+            start, stop, step, SSBfreq=SSBfreq, channels=channels,
+            pulse_mod=pulse_mod, gaussian=gaussian)
+        set_up_sequence(awg, alazar, [acq_ctrl], seq_to_upload, seq_mode=1)
     else:
         alazar.seq_mode(1)
+
     old_power = qubit.power()
     old_frequency = qubit.frequency()
     old_status = qubit.status()
@@ -225,19 +216,127 @@ def do_rabis(awg, alazar, acq_ctrl, qubit, start_dur=0, stop_dur=200e-9,
     qubit.power(qubit_power)
     qubit.status('on')
 
-    centre = freq_centre or get_calibration_val('qubit_freq')
+    qubit_freq = qubit_freq or get_calibration_val('qubit_freq')
+    centre = qubit_freq + SSBfreq if SSBfreq is None else qubit_freq
     freq_start = centre - freq_pm
     freq_stop = centre + freq_pm
 
     data, plot = sweep1d(acq_ctrl.acquisition, qubit.frequency, freq_start,
-                         freq_stop, freq_step,
-                         live_plot=live_plot, key="mag", save=True)
+                         freq_stop, freq_step, key="mag", save=True)
 
-    if calib_update:
-        set_calibration_val('pi_pulse_pow', qubit_power)
     qubit.power(old_power)
     qubit.frequency(old_frequency)
     qubit.status(old_status)
+
+    return data, plot
+
+
+def do_t1(awg, alazar, acq_ctrl, qubit, start=0, stop=5e-6, step=50e-9,
+          qubit_power=None, SSBfreq=None, qubit_freq=None, gaussian=False,
+          pulse_mod=False, channels=[1, 2, 3, 4]):
+    seq_uploaded = check_seq_uploaded(
+        awg, 't1', {'SSBfreq': SSBfreq, 'gaussian': gaussian,
+                    'pulse_mod': pulse_mod},
+        start=start, stop=stop, step=step)
+
+    if not seq_uploaded:
+        seq_to_upload = make_t1_sequence(
+            start, stop, step, SSBfreq=SSBfreq, channels=channels,
+            pulse_mod=pulse_mod, gaussian=gaussian)
+        set_up_sequence(awg, alazar, [acq_ctrl], seq_to_upload, seq_mode=1)
+    else:
+        alazar.seq_mode(1)
+
+    old_power = qubit.power()
+    old_frequency = qubit.frequency()
+    old_status = qubit.status()
+    qubit_power = qubit_power or get_calibration_val('pi_pulse_pow')
+    qubit_freq = qubit_freq or get_calibration_val('qubit_freq')
+    qubit.power(qubit_power)
+    qubit.status('on')
+    centre = qubit_freq + SSBfreq if SSBfreq is None else qubit_freq
+    qubit.frequency(centre)
+
+    data, plot = measure(acq_ctrl.acquisition, key="mag", save=True)
+
+    qubit.power(old_power)
+    qubit.frequency(old_frequency)
+    qubit.status(old_status)
+
+    return data, plot
+
+
+def do_ramsey(awg, alazar, acq_ctrl, qubit, start=0, stop=2e-6,
+              step=20e-9, qubit_power=None, SSBfreq=None,
+              qubit_freq=None, freq_pm=10e6, freq_step=2e6, gaussian=False,
+              pulse_mod=False, channels=[1, 2, 3, 4]):
+    seq_uploaded = check_seq_uploaded(
+        awg, 'ramsey', {'SSBfreq': SSBfreq, 'gaussian': gaussian,
+                        'pulse_mod': pulse_mod},
+        start=start, stop=stop, step=step)
+
+    if not seq_uploaded:
+        seq_to_upload = make_ramsey_sequence(
+            start, stop, step, SSBfreq=SSBfreq, channels=channels,
+            pulse_mod=pulse_mod, gaussian=gaussian)
+        set_up_sequence(awg, alazar, [acq_ctrl], seq_to_upload, seq_mode=1)
+    else:
+        alazar.seq_mode(1)
+
+    old_power = qubit.power()
+    old_frequency = qubit.frequency()
+    old_status = qubit.status()
+    qubit_power = qubit_power or get_calibration_val('pi_pulse_pow')
+    qubit.power(qubit_power)
+    qubit.status('on')
+
+    qubit_freq = qubit_freq or get_calibration_val('qubit_freq')
+    centre = qubit_freq + SSBfreq if SSBfreq is None else qubit_freq
+    freq_start = centre - freq_pm
+    freq_stop = centre + freq_pm
+
+    data, plot = sweep1d(acq_ctrl.acquisition, qubit.frequency, freq_start,
+                         freq_stop, freq_step, key="mag", save=True)
+
+    qubit.power(old_power)
+    qubit.frequency(old_frequency)
+    qubit.status(old_status)
+
+    return data, plot
+
+
+def do_t2_star(awg, alazar, acq_ctrl, qubit, start=0, stop=2e-6, step=20e-9,
+               qubit_power=None, SSBfreq=None, qubit_freq=None, gaussian=False,
+               pulse_mod=False, channels=[1, 2, 3, 4]):
+    seq_uploaded = check_seq_uploaded(
+        awg, 'ramsey', {'SSBfreq': SSBfreq, 'gaussian': gaussian,
+                        'pulse_mod': pulse_mod},
+        start=start, stop=stop, step=step)
+
+    if not seq_uploaded:
+        seq_to_upload = make_ramsey_sequence(
+            start, stop, step, SSBfreq=SSBfreq, channels=channels,
+            pulse_mod=pulse_mod, gaussian=gaussian)
+        set_up_sequence(awg, alazar, [acq_ctrl], seq_to_upload, seq_mode=1)
+    else:
+        alazar.seq_mode(1)
+
+    old_power = qubit.power()
+    old_frequency = qubit.frequency()
+    old_status = qubit.status()
+    qubit_power = qubit_power or get_calibration_val('pi_pulse_pow')
+    qubit_freq = qubit_freq or get_calibration_val('qubit_freq')
+    qubit.power(qubit_power)
+    qubit.status('on')
+    qubit.frequency(qubit_freq)
+
+    data, plot = measure(acq_ctrl.acquisition, key="mag", save=True)
+
+    qubit.power(old_power)
+    qubit.frequency(old_frequency)
+    qubit.status(old_status)
+
+    return data, plot
 
 
 def calibrate_pi_pulse(awg, alazar, acq_ctrl, qubit, start_dur=0,
@@ -245,30 +344,6 @@ def calibrate_pi_pulse(awg, alazar, acq_ctrl, qubit, start_dur=0,
                        qubit_power=None, freq_centre=None, freq_pm=10e6,
                        freq_step=2e6, live_plot=True, calib_update=True,
                        gaussian=False, sigma_cutoff=None, pulse_mod=False):
-    raise NotImplementedError
-
-
-def do_t1(awg, alazar, acq_ctrl, qubit, start_delay=0, stop_delay=10e-6,
-          step_dur=1e-9, pi_pulse_amp=None, qubit_power=None,
-          freq_centre=None, freq_pm=10e6, freq_step=2e6, live_plot=True,
-          calib_update=True, gaussian=False, sigma_cutoff=None,
-          pulse_mod=False):
-    raise NotImplementedError
-
-
-def do_ramsey(awg, alazar, acq_ctrl, qubit, start_delay=0, stop_delay=10e-6,
-              step_dur=1e-9, pi_pulse_amp=None, qubit_power=None,
-              freq_centre=None, freq_pm=10e6, freq_step=2e6, live_plot=True,
-              calib_update=True, gaussian=False, sigma_cutoff=None,
-              pulse_mod=False):
-    raise NotImplementedError
-
-
-def do_t2_star(awg, alazar, acq_ctrl, qubit, start_delay=0, stop_delay=10e-6,
-               step_dur=1e-9, pi_pulse_amp=None, qubit_power=None,
-               freq_centre=None, freq_pm=10e6, freq_step=2e6, live_plot=True,
-               calib_update=True, gaussian=False, sigma_cutoff=None,
-               pulse_mod=False):
     raise NotImplementedError
 
 

@@ -1,6 +1,8 @@
 import numpy as np
 from functools import partial
 import logging
+from qcodes.utils import validators as vals
+from qcodes.instrument.parameter import ManualParameter
 from . import get_qubit_count, config_alazar, get_alazar_seq_mode, \
     set_alazar_seq_mode
 
@@ -136,14 +138,19 @@ def import_rs(visa_address, name='rs_source', station=None):
 def import_awg(visa_address, name='awg', timeout=40, station=None):
     from qcodes.instrument_drivers.tektronix.AWG5014 import Tektronix_AWG5014
     awg = Tektronix_AWG5014(name, visa_address, timeout=timeout)
-    awg.ch1_m1_high(2)
-    awg.ch1_m2_high(2)
-    awg.ch2_m1_high(2)
-    awg.ch2_m2_high(2)
-    awg.ch3_m1_high(2)
-    awg.ch3_m2_high(2)
-    awg.ch4_m1_high(2)
-    awg.ch4_m2_high(2)
+    awg.add_parameter(name='current_seq',
+                      parameter_class=ManualParameter,
+                      initial_value=None,
+                      label='Uploaded sequence index',
+                      vals=vals.Ints())
+    awg.ch1_m1_high(1)
+    awg.ch1_m2_high(1)
+    awg.ch2_m1_high(1)
+    awg.ch2_m2_high(1)
+    awg.ch3_m1_high(1)
+    awg.ch3_m2_high(1)
+    awg.ch4_m1_high(1)
+    awg.ch4_m2_high(1)
     awg.ch1_filter(100000000.0)
     awg.ch2_filter(100000000.0)
     awg.ch3_filter(100000000.0)

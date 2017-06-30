@@ -1,18 +1,19 @@
 {
-    "gui": {
-        "plotlib": "matplotlib",
-        "notebook": true
-    },
     "user": {
+        "analysis_location": "/Users/Natalie/Documents/PhD/Qdev/QcodesRelated/Qcodes_test_data/{sample_name}/analysis/",
+        "data_location": "/Users/Natalie/Documents/PhD/Qdev/QcodesRelated/Qcodes_test_data/{sample_name}/data/",
+        "log_location": "/Users/Natalie/Documents/PhD/Qdev/QcodesRelated/Qcodes_test_data/{sample_name}/log_files/",
+        "temp_dict_location": "/Users/Natalie/Documents/PhD/Qdev/QcodesRelated/Qcodes_test_data/{sample_name}/temp_dicts/",
         "data_format": "{counter}",
-        "analysis_location": "C:/Users/qcodes-natalie/Qcodes-contrib/qdev_transmon_examples/{sample_name}/analysis/",
-        "pulse_location": "C:/Users/qcodes-natalie/Qcodes-contrib/qdev_transmon_examples/{sample_name}/pulse_lib/",
-        "data_location": "C:/Users/qcodes-natalie/Qcodes-contrib/qdev_transmon_examples/{sample_name}/data/",
-        "log_location": "C:/Users/qcodes-natalie/Qcodes-contrib/qdev_transmon_examples/{sample_name}/log_files/"
+        "pulse_location": "/Users/Natalie/Documents/PhD/Qdev/QcodesRelated/Qcodes_test_data/{sample_name}/pulse_lib/"
+    },
+    "gui": {
+        "notebook": true,
+        "plotlib": "matplotlib"
     },
     "core": {
+        "loglevel": "DEBUG",
         "legacy_mp": false,
-        "default_fmt": "data/{date}/#{counter}_{name}_{time}",
-        "loglevel": "DEBUG"
+        "default_fmt": "data/{date}/#{counter}_{name}_{time}"
     }
 }

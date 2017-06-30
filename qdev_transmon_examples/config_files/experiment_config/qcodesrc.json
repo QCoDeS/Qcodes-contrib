@@ -1,0 +1,18 @@
+{
+    "gui": {
+        "plotlib": "matplotlib",
+        "notebook": true
+    },
+    "user": {
+        "data_format": "{counter}",
+        "analysis_location": "A:/TransmonExperiments/GoogleDrive/T2acquisition/Data/{sample_name}/analysis/",
+        "pulse_location": "A:/TransmonExperiments/GoogleDrive/T2acquisition/Data/{sample_name}/pulse_lib/",
+        "data_location": "A:/TransmonExperiments/GoogleDrive/T2acquisition/Data/{sample_name}/data/",
+        "log_location": "A:/TransmonExperiments/GoogleDrive/T2acquisition/Data/{sample_name}/log_files/"
+    },
+    "core": {
+        "legacy_mp": false,
+        "default_fmt": "data/{date}/#{counter}_{name}_{time}",
+        "loglevel": "DEBUG"
+    }
+}

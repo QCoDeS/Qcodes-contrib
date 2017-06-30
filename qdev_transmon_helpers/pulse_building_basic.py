@@ -1,16 +1,20 @@
 from . import make_readout_wf, get_calibration_dict, \
     make_time_varying_sequence, make_multi_varying_sequence, \
     make_time_multi_varying_sequence, \
-    cos_wave, sin_wave, flat, gaussian, SSB_Q_gaussian, \
-    SSB_I_gaussian
+    cos_wave, sin_wave, flat, gaussian, cos_gaussian, sin_gaussian
 from . import Segment, Waveform, Element, Sequence
 
-
+# TODO: T2 echo
+# TODO: docstrings
 # TODO: checks
+# TODO: seq labels
+# TODO: drag
+# TODO: remove pi_amp?
 
 ################################################################
 # Spectroscopy
 ################################################################
+
 
 def make_calib_SSB_sequence(freq, amp=1, dur=None, channels=[1, 2]):
     p_dict = get_calibration_dict()
@@ -76,8 +80,10 @@ def make_spectrscopy_SSB_sequence(start, stop, step, channels=[1, 2, 4],
     marker_points = int(p_dict['marker_time'] * p_dict['sample_rate'])
     ssb_seq = make_multi_varying_sequence(
         ssb_element, channels[0], 1, 'freq', start, stop, step,
-        channels[1], 'freq', start, stop, step,
+        channels[1], 'freq', start, stop, step, name="ssb_sequence",
+        variable_name='LSB_drive_detuning', varibale_unit='Hz',
         readout_ch=channels[2], marker_points=marker_points)
+    ssb_seq.labels = {'seq_type': 'spectroscopy', 'pulse_mod': pulse_mod}
     return ssb_seq
 
 ################################################################
@@ -129,9 +135,12 @@ def make_rabi_carrier_sequence(start, stop, step, pi_amp=None,
     marker_points = int(p_dict['marker_time'] * p_dict['sample_rate'])
     rabi_sequence = make_time_varying_sequence(
         rabi_element, channels[0], 1, variable_arg, start, stop, step, 0,
-        p_dict['cycle_time'], readout_ch=channels[1],
-        marker_points=marker_points)
-
+        p_dict['cycle_time'], name='rabi_seq',
+        variable_name='pi_pulse_' + variable_arg, variable_unit='s',
+        readout_ch=channels[1], marker_points=marker_points)
+    rabi_sequence.labels = {'SSBfreq': None, 'seq_type': 'rabi',
+                            'gaussian': gaussian, 'drag': False,
+                            'pulse_mod': pulse_mod}
     return rabi_sequence
 
 
@@ -155,13 +164,13 @@ def make_rabi_SSB_sequence(start, stop, step, SSBfreq, channels=[1, 2, 4],
 
     if gaussian:
         variable_pi_I_segment = Segment(
-            name='gaussian_SSB_pi_I_pulse', gen_func=SSB_I_gaussian,
+            name='gaussian_SSB_pi_I_pulse', gen_func=cos_gaussian,
             func_args={'sigma_cutoff': p_dict['sigma_cutoff'], 'amp': pi_amp,
                        'SSBfreq': SSBfreq})
         variable_pi_Q_segment = Segment(
-            name='gaussian_SSB_pi_Q_pulse', gen_func=SSB_Q_gaussian,
+            name='gaussian_SSB_pi_Q_pulse', gen_func=sin_gaussian,
             func_args={'sigma_cutoff': p_dict['sigma_cutoff'], 'amp': pi_amp,
-                       'SSBfreq': SSBfreq})
+                       'SSBfreq': SSBfreq, 'positive': False})
         variable_arg = 'sigma'
     else:
         variable_pi_I_segment = Segment(
@@ -196,14 +205,17 @@ def make_rabi_SSB_sequence(start, stop, step, SSBfreq, channels=[1, 2, 4],
     rabi_sequence = make_time_multi_varying_sequence(
         rabi_element, channels[0], 1, 'sigma', start, stop, step,
         channels[1], 1, variable_arg, start, stop, step,
-        0, 0, p_dict['cycle_time'], marker_ch=channels[2],
-        marker_points=marker_points)
-
+        0, 0, p_dict['cycle_time'], name='rabi_ssb_seq',
+        variable_name='pi_pulse_' + variable_arg, variable_unit='s',
+        marker_ch=channels[2], marker_points=marker_points)
+    rabi_sequence.labels = {'SSBfreq': SSBfreq, 'seq_type': 'rabi',
+                            'gaussian': gaussian, 'drag': False,
+                            'pulse_mod': pulse_mod}
     return rabi_sequence
 
 
-def make_rabi_sequence(start, stop, step, channels=[1, 2, 4], pulse_mod=False,
-                       SSBfreq=None, pi_amp=None, gaussian=True):
+def make_rabi_sequence(start, stop, step, SSBfreq=None, channels=[1, 2, 4],
+                       pulse_mod=False, pi_amp=None, gaussian=True):
     if SSBfreq is not None:
         seq = make_rabi_SSB_sequence(
             start, stop, step, SSBfreq, channels=channels, pulse_mod=pulse_mod,
@@ -266,8 +278,12 @@ def make_t1_carrier_sequence(start, stop, step, pi_dur=None, pi_amp=None,
     marker_points = int(p_dict['marker_time'] * p_dict['sample_rate'])
     t1_sequence = make_time_varying_sequence(
         t1_element, channels[0], 2, 'dur', start, stop, step, 0,
-        p_dict['cycle_time'], readout_ch=channels[1],
-        marker_points=marker_points)
+        p_dict['cycle_time'], name='t1_seq',
+        variable_name='pi_pulse_readout_delay', variable_unit='s',
+        readout_ch=channels[1], marker_points=marker_points)
+    t1_sequence.labels = {'SSBfreq': None, 'seq_type': 't1',
+                          'gaussian': gaussian, 'drag': False,
+                          'pulse_mod': pulse_mod}
     return t1_sequence
 
 
@@ -292,13 +308,14 @@ def make_t1_SSB_sequence(start, stop, step, SSBfreq, pi_dur=None,
     if gaussian:
         pi_sigma = pi_dur or p_dict['pi_pulse_sigma']
         pi_I_segment = Segment(
-            name='gaussian_SSB_pi_I_pulse', gen_func=SSB_I_gaussian,
+            name='gaussian_SSB_pi_I_pulse', gen_func=cos_gaussian,
             func_args={'sigma_cutoff': p_dict['sigma_cutoff'], 'amp': pi_amp,
                        'SSBfreq': SSBfreq, 'sigma': pi_sigma})
         pi_Q_segment = Segment(
-            name='gaussian_SSB_pi_Q_pulse', gen_func=SSB_Q_gaussian,
+            name='gaussian_SSB_pi_Q_pulse', gen_func=sin_gaussian,
             func_args={'sigma_cutoff': p_dict['sigma_cutoff'], 'amp': pi_amp,
-                       'SSBfreq': SSBfreq, 'sigma': pi_sigma})
+                       'SSBfreq': SSBfreq, 'sigma': pi_sigma,
+                       'positive': False})
     else:
         pi_dur = pi_dur or p_dict['pi_pulse_dur']
         pi_I_segment = Segment(
@@ -338,14 +355,18 @@ def make_t1_SSB_sequence(start, stop, step, SSBfreq, pi_dur=None,
     t1_sequence = make_time_multi_varying_sequence(
         t1_element, channels[0], 2, 'dur', start, stop, step,
         channels[1], 2, 'dur', start, stop, step,
-        0, 0, p_dict['cycle_time'], marker_ch=channels[2],
-        marker_points=marker_points)
+        0, 0, p_dict['cycle_time'], name='t1_ssb_seq',
+        variable_name='pi_pulse_readout_delay', variable_unit='s',
+        marker_ch=channels[2], marker_points=marker_points)
+    t1_sequence.labels = {'SSBfreq': SSBfreq, 'seq_type': 't1',
+                          'gaussian': gaussian, 'drag': False,
+                          'pulse_mod': pulse_mod}
     return t1_sequence
 
 
-def make_t1_seq(start, stop, step, SSBfreq=None, pi_dur=None,
-                pi_amp=None, channels=[1, 4], gaussain=True,
-                pulse_mod=False):
+def make_t1_sequence(start, stop, step, SSBfreq=None, pi_dur=None,
+                     pi_amp=None, channels=[1, 4], gaussain=True,
+                     pulse_mod=False):
     if SSBfreq is not None:
         seq = make_t1_SSB_sequence(
             start, stop, step, SSBfreq, channels=channels, pulse_mod=pulse_mod,
@@ -417,9 +438,12 @@ def make_ramsey_carrier_sequence(start, stop, step, pi_half_amp=None,
     marker_points = int(p_dict['marker_time'] * p_dict['sample_rate'])
     ramsey_sequence = make_time_varying_sequence(
         ramsey_element, channels[0], 2, 'dur', start, stop, step, 0,
-        p_dict['cycle_time'], readout_ch=channels[1],
-        marker_points=marker_points)
-
+        p_dict['cycle_time'], name='ramsey_seq',
+        variable_name='pi_half_pulse_pi_half_pulse_delay', variable_unit='s',
+        readout_ch=channels[1], marker_points=marker_points)
+    ramsey_sequence.labels = {'SSBfreq': None, 'seq_type': 'ramsey',
+                              'gaussian': gaussian, 'drag': False,
+                              'pulse_mod': pulse_mod}
     return ramsey_sequence
 
 
@@ -444,15 +468,15 @@ def make_ramsey_SSB_sequence(start, stop, step, SSBfreq, pi_half_amp=None,
     if gaussian:
         pi_half_sigma = pi_half_dur or p_dict['pi_half_pulse_sigma']
         pi_half_I_segment = Segment(
-            name='gaussian_SSB_pi_half_I_pulse', gen_func=SSB_I_gaussian,
+            name='gaussian_SSB_pi_half_I_pulse', gen_func=cos_gaussian,
             func_args={'sigma_cutoff': p_dict['sigma_cutoff'],
                        'amp': pi_half_amp, 'SSBfreq': SSBfreq,
                        'sigma': pi_half_sigma})
         pi_half_Q_segment = Segment(
-            name='gaussian_SSB_pi_half_Q_pulse', gen_func=SSB_Q_gaussian,
+            name='gaussian_SSB_pi_half_Q_pulse', gen_func=sin_gaussian,
             func_args={'sigma_cutoff': p_dict['sigma_cutoff'],
                        'amp': pi_half_amp, 'SSBfreq': SSBfreq,
-                       'sigma': pi_half_sigma})
+                       'sigma': pi_half_sigma, 'positive': False})
     else:
         pi_half_dur = pi_half_dur or p_dict['pi_half_pulse_sigma']
         pi_half_I_segment = Segment(
@@ -493,8 +517,12 @@ def make_ramsey_SSB_sequence(start, stop, step, SSBfreq, pi_half_amp=None,
     ramsey_sequence = make_time_multi_varying_sequence(
         ramsey_element, channels[0], 2, 'dur', start, stop, step,
         channels[1], 2, 'dur', start, stop, step,
-        0, 0, p_dict['cycle_time'], marker_ch=channels[2],
-        marker_points=marker_points)
+        0, 0, p_dict['cycle_time'], name='ramsey_ssb_seq',
+        variable_name='pi_half_pulse_pi_half_pulse_delay', variable_unit='s',
+        marker_ch=channels[2], marker_points=marker_points)
+    ramsey_sequence.labels = {'SSBfreq': SSBfreq, 'seq_type': 'ramsey',
+                              'gaussian': gaussian, 'drag': False,
+                              'pulse_mod': pulse_mod}
     return ramsey_sequence
 
 
