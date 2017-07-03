@@ -31,9 +31,9 @@ allxy_gates = [['id', 'id'],
 
 
 def make_allxy_sequence(SSBfreq=None, drag=False, channels=[1, 2, 3, 4],
-                        spacing=None):
-    seq = make_sequence_from_gate_lists(allxy_gates, SSBfreq=SSBfreq,
-                                        drag=drag, variable_label=None,
-                                        spacing=None, name='allxy_seq')
+                        spacing=None, gaussian=True):
+    seq = make_sequence_from_gate_lists(
+        allxy_gates, SSBfreq=SSBfreq, drag=drag, gaussian=gaussian,
+        variable_label=None, spacing=spacing, name='allxy_seq')
     seq.labels = {'seq_type': 'allxy', 'pulse_mod': False}
     return seq

@@ -22,7 +22,7 @@ alazar_dict_keys = ['int_time', 'int_delay', 'cavity_freq',
 
 default_pulse_dict = {'cycle_time': 20e-6, 'sample_rate': 1e9,
                       'pulse_end': 10e-6, 'pulse_readout_delay': 30e-9,
-                      'readout_time': 4e-6, 'readout_amp': 1, 
+                      'readout_time': 4e-6, 'readout_amp': 1,
                       'marker_time': 500e-9,
                       'marker_readout_delay': 0, 'qubit_spec_time': 1e-6,
                       'pulse_mod_time': 1.5e-6, 'pi_pulse_amp': 1,
@@ -30,7 +30,8 @@ default_pulse_dict = {'cycle_time': 20e-6, 'sample_rate': 1e9,
                       'pi_half_pulse_sigma': None, 'pi_pulse_dur': None,
                       'pi_half_pulse_dur': None, 'sigma_cutoff': 4,
                       'z_pulse_amp': None, 'z_pulse_dur': None,
-                      'z_half_pulse_amp': None, 'z_half_pulse_dur': None}
+                      'z_half_pulse_amp': None, 'z_half_pulse_dur': None,
+                      'drag_coef': 0.5}
 
 
 def dd_f():
@@ -186,7 +187,7 @@ def get_calibration_val(key, qubit_index=None):
         qubit_value
     """
     c_dict = get_calibration_dict()
-    return c_dict[key][c_dict[qubit_index or c_dict['current_qubit']]]
+    return c_dict[key][qubit_index or c_dict['current_qubit']]
 
 
 def get_calibration_array(key):

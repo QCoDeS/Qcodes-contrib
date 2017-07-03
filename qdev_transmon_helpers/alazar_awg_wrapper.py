@@ -1,5 +1,6 @@
 from . import check_sample_rate, make_save_send_load_awg_file, \
-    get_pulse_location, get_latest_counter, save_sequence
+    get_pulse_location, get_latest_counter
+from .sequencing import save_sequence
 
 
 def set_up_sequence(awg, alazar, acq_controllers, sequence, seq_mode='on'):

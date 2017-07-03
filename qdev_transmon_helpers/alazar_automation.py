@@ -3,10 +3,11 @@ import time
 import datetime
 
 from . import do_cavity_freq_sweep, find_extreme, set_calibration_val, \
-    set_single_demod_freq, make_spectrscopy_SSB_sequence, \
-    get_calibration_val, measure_ssb, set_up_sequence, make_rabi_sequence, \
-    sweep1d, make_t1_sequence, measure, make_ramsey_sequence, \
-    sweep_2d_ssb, check_seq_uploaded
+    set_single_demod_freq, get_calibration_val, set_up_sequence, \
+    sweep1d, measure, measure_ssb, sweep_2d_ssb, check_seq_uploaded
+
+from .sequencing import make_spectroscopy_SSB_sequence, make_rabi_sequence, \
+    make_t1_sequence, make_ramsey_sequence
 
 # TODO: find qubit to compare to average
 # TODO: complete do_tracking_ssb_gate_sweep
@@ -103,7 +104,7 @@ def find_qubit(awg, alazar, acq_ctrl, qubit, start_freq=4e9, stop_freq=6e9,
         awg, 'spectroscopy', {'pulse_mod': pulse_mod},
         start=0, stop=200e-6, step=1e-6)
     if not seq_uploaded:
-        ssb_seq = make_spectrscopy_SSB_sequence(
+        ssb_seq = make_spectroscopy_SSB_sequence(
             0, 200e-6, 1e-6, channels=channels, pulse_mod=pulse_mod)
         set_up_sequence(awg, alazar, [acq_ctrl], ssb_seq, seq_mode=1)
     else:

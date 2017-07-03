@@ -140,22 +140,22 @@ def smooth_data_butter(data, fs, cutoff, order):
     return signal.filtfilt(b, a, data)
 
 
-def gaussian(sigma, sigma_cuttoff, amp, SR):
+def gaussian_array(sigma, sigma_cutoff, amp, SR):
     """
-    Function which makes a gaussian of length (2*sigma_cuttoff)
+    Function which makes a gaussian of length (2*sigma_cutoff)
 
     Args:
         sampling_rate
         sigma
-        sigma_cuttoff
+        sigma_cutoff
         amp (default 1)
     """
-    t = np.linspace(-1 * sigma_cuttoff * sigma, sigma_cuttoff * sigma,
-                    num=int(SR * 2 * sigma_cuttoff * sigma))
+    t = np.linspace(-1 * sigma_cutoff * sigma, sigma_cutoff * sigma,
+                    num=int(SR * 2 * sigma_cutoff * sigma))
     return amp * np.exp(-(t / (2 * sigma))**2)
 
 
-def cos_gaussian(sigma, sigma_cuttoff, SSBfreq, amp, SR, positive=True):
+def cos_gaussian_array(sigma, sigma_cutoff, SSBfreq, amp, SR, positive=True):
     """
     Function which makes the I component of a single sideband with a gaussan
     envelope
@@ -163,19 +163,19 @@ def cos_gaussian(sigma, sigma_cuttoff, SSBfreq, amp, SR, positive=True):
     Args:
         sampling_rate
         sigma
-        sigma_cuttoff
+        sigma_cutoff
         SSBfreq
         amp (default 1)
     """
-    t = np.linspace(-1 * sigma_cuttoff * sigma, sigma_cuttoff *
-                    sigma, num=int(SR * 2 * sigma_cuttoff * sigma))
+    t = np.linspace(-1 * sigma_cutoff * sigma, sigma_cutoff *
+                    sigma, num=int(SR * 2 * sigma_cutoff * sigma))
     prefactor = amp if positive else -1 * amp
     y = prefactor * np.exp(-(t / (2 * sigma))**2) * \
         np.cos(2 * np.pi * SSBfreq * t)
     return y
 
 
-def sin_gaussian(sigma, sigma_cuttoff, SSBfreq, amp, SR, positive=True):
+def sin_gaussian_array(sigma, sigma_cutoff, SSBfreq, amp, SR, positive=True):
     """
     Function which makes the Q component of a single sideband with a gaussan
     envelope
@@ -183,36 +183,36 @@ def sin_gaussian(sigma, sigma_cuttoff, SSBfreq, amp, SR, positive=True):
     Args:
         sampling_rate
         sigma
-        sigma_cuttoff
+        sigma_cutoff
         SSBfreq
         amp (default 1)
     """
-    t = np.linspace(-1 * sigma_cuttoff * sigma, sigma_cuttoff *
-                    sigma, num=int(SR * 2 * sigma_cuttoff * sigma))
+    t = np.linspace(-1 * sigma_cutoff * sigma, sigma_cutoff *
+                    sigma, num=int(SR * 2 * sigma_cutoff * sigma))
     prefactor = amp if positive else -1 * amp
     y = prefactor * np.exp(-(t / (2 * sigma))**2) * \
         -np.sin(2 * np.pi * SSBfreq * t)
     return y
 
 
-def ramp(start, stop, dur, SR):
+def ramp_array(start, stop, dur, SR):
     points = int(SR * dur)
     return np.linspace(start, stop, points)
 
 
-def flat(amp, dur, SR):
+def flat_array(amp, dur, SR):
     points = int(SR * dur)
     return amp * np.ones(points)
 
 
-def gaussian_derivative(sigma, sigma_cutoff, amp, SR):
+def gaussian_derivative_array(sigma, sigma_cutoff, amp, SR):
     points = int(SR * 2 * sigma_cutoff * sigma)
     t = np.linspace(-1 * sigma_cutoff * sigma, sigma_cutoff * sigma,
                     num=points)
     return -amp * t / sigma * np.exp(-(t / (2 * sigma))**2)
 
 
-def cos_wave(freq, amp, dur, SR, positive=True):
+def cos_array(freq, amp, dur, SR, positive=True):
     points = int(SR * dur)
     t = np.linspace(0, dur, num=points)
     angle = t * freq * 2 * np.pi
@@ -220,7 +220,7 @@ def cos_wave(freq, amp, dur, SR, positive=True):
     return prefactor * np.cos(angle)
 
 
-def sin_wave(freq, amp, dur, SR, positive=True):
+def sin_array(freq, amp, dur, SR, positive=True):
     points = int(SR * dur)
     t = np.linspace(0, dur, num=points)
     angle = t * freq * 2 * np.pi

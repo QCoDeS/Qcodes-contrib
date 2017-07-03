@@ -1,7 +1,8 @@
 from . import make_readout_wf, get_calibration_dict, \
     make_time_varying_sequence, make_multi_varying_sequence, \
     make_time_multi_varying_sequence, \
-    cos_wave, sin_wave, flat, gaussian, cos_gaussian, sin_gaussian
+    cos_array, sin_array, flat_array, gaussian_array, cos_gaussian_array, \
+    sin_gaussian_array
 from . import Segment, Waveform, Element, Sequence
 
 # TODO: T2 echo
@@ -17,46 +18,52 @@ from . import Segment, Waveform, Element, Sequence
 
 
 def make_calib_SSB_sequence(freq, amp=1, dur=None, channels=[1, 2]):
-    p_dict = get_calibration_dict()
-    dur = dur or p_dict['cycle_time']
+    calib_dict = get_calibration_dict()
+    qubit = calib_dict['current_qubit']
+    dur = dur or calib_dict['cycle_time'][qubit]
 
     seq = Sequence(name='ssb_calib_seq')
     element = Element()
     waveform_i = Waveform(channel=channels[0])
     waveform_q = Waveform(channel=channels[1])
-    waveform_i.wave = cos_wave(freq, amp, dur, p_dict['sample_rate'])
-    waveform_q.wave = sin_wave(freq, amp, dur, p_dict['sample_rate'])
+    waveform_i.wave = cos_array(
+        freq, amp, dur, calib_dict['sample_rate'][qubit])
+    waveform_q.wave = sin_array(
+        freq, amp, dur, calib_dict['sample_rate'][qubit])
     element.add_waveform(waveform_i)
     element.add_waveform(waveform_q)
     seq.add_element(element)
     return seq
 
 
-def make_spectrscopy_SSB_sequence(start, stop, step, channels=[1, 2, 4],
+def make_spectroscopy_SSB_sequence(start, stop, step, channels=[1, 2, 4],
                                   pulse_mod=False):
-    p_dict = get_calibration_dict()
-
+    calib_dict = get_calibration_dict()
+    qubit = calib_dict['current_qubit']
     if pulse_mod:
-        pulse_mod_markers = {1: {'delay_time': [0],
-                                 'duration_time': [p_dict['pulse_mod_time']]}}
+        pulse_mod_markers = {
+            1: {'delay_time': [0],
+                'duration_time': [calib_dict['pulse_mod_time'][qubit]]}}
     else:
         pulse_mod_markers = None
 
-    time_before_qubit = p_dict['pulse_end'] - p_dict['qubit_spec_time']
-    time_after_qubit = p_dict['cycle_time'] - p_dict['pulse_end']
+    time_before_qubit = (calib_dict['pulse_end'][qubit] -
+                         calib_dict['qubit_spec_time'][qubit])
+    time_after_qubit = (calib_dict['cycle_time'][qubit] -
+                        calib_dict['pulse_end'][qubit])
     before_qubit_wait_segment = Segment(
-        name='wait', gen_func=flat,
+        name='wait', gen_func=flat_array,
         func_args={'amp': 0, 'dur': time_before_qubit})
     variable_qubit_drive_I_segment = Segment(
-        name='SSB_drive_I', gen_func=cos_wave,
-        func_args={'amp': 1, 'dur': p_dict['qubit_spec_time']},
+        name='SSB_drive_I', gen_func=cos_array,
+        func_args={'amp': 1, 'dur': calib_dict['qubit_spec_time'][qubit]},
         time_markers=pulse_mod_markers)
     variable_qubit_drive_Q_segment = Segment(
-        name='SSB_drive_Q', gen_func=sin_wave,
-        func_args={'amp': 1, 'dur': p_dict['qubit_spec_time'],
+        name='SSB_drive_Q', gen_func=sin_array,
+        func_args={'amp': 1, 'dur': calib_dict['qubit_spec_time'][qubit],
                    'positive': False})
     after_qubit_wait_segment = Segment(
-        name='wait', gen_func=flat,
+        name='wait', gen_func=flat_array,
         func_args={'amp': 0, 'dur': time_after_qubit},
         time_markers=pulse_mod_markers)
 
@@ -77,7 +84,8 @@ def make_spectrscopy_SSB_sequence(start, stop, step, channels=[1, 2, 4],
     ssb_element.add_waveform(ssb_Q_wf)
     ssb_element.add_waveform(readout_wf)
 
-    marker_points = int(p_dict['marker_time'] * p_dict['sample_rate'])
+    marker_points = int(calib_dict['marker_time'][qubit] *
+                        calib_dict['sample_rate'][qubit])
     ssb_seq = make_multi_varying_sequence(
         ssb_element, channels[0], 1, 'freq', start, stop, step,
         channels[1], 'freq', start, stop, step, name="ssb_sequence",
@@ -94,31 +102,36 @@ def make_spectrscopy_SSB_sequence(start, stop, step, channels=[1, 2, 4],
 def make_rabi_carrier_sequence(start, stop, step, pi_amp=None,
                                channels=[1, 4], pulse_mod=False,
                                gaussian=True):
-    p_dict = get_calibration_dict()
-    pi_amp = pi_amp or p_dict['pi_pulse_amp']
+    calib_dict = get_calibration_dict()
+    qubit = calib_dict['current_qubit']
+    pi_amp = pi_amp or calib_dict['pi_pulse_amp'][qubit]
 
-    time_after_qubit = p_dict['cycle_time'] - p_dict['pulse_end']
+    time_after_qubit = (calib_dict['cycle_time'][qubit] -
+                        calib_dict['pulse_end'][qubit])
 
     if pulse_mod:
-        pulse_mod_markers = {1: {'delay_time': [-p_dict['pulse_mod_time']],
-                                 'duration_time': [p_dict['pulse_mod_time']]}}
+        pulse_mod_markers = {
+            1: {'delay_time': [-calib_dict['pulse_mod_time'][qubit]],
+                'duration_time': [calib_dict['pulse_mod_time'][qubit]]}}
     else:
         pulse_mod_markers = None
 
     compensating_wait_segment = Segment(
-        name='compensating_wait', gen_func=flat, func_args={'amp': 0})
+        name='compensating_wait', gen_func=flat_array, func_args={'amp': 0})
 
     if gaussian:
         variable_pi_segment = Segment(
-            name='gaussian_pi_pulse', gen_func=gaussian,
-            func_args={'sigma_cutoff': p_dict['sigma_cutoff'], 'amp': pi_amp})
+            name='gaussian_pi_pulse', gen_func=gaussian_array,
+            func_args={'sigma_cutoff': calib_dict['sigma_cutoff'][qubit],
+                       'amp': pi_amp})
         variable_arg = 'sigma'
     else:
-        variable_pi_segment = Segment(name='square_pi_pulse', gen_func=flat,
-                                      func_args={'amp': pi_amp})
+        variable_pi_segment = Segment(
+            name='square_pi_pulse', gen_func=flat_array,
+            func_args={'amp': pi_amp})
         variable_arg = 'dur'
 
-    wait_segment = Segment(name='wait', gen_func=flat,
+    wait_segment = Segment(name='wait', gen_func=flat_array,
                            func_args={'amp': 0, 'dur': time_after_qubit},
                            time_markers=pulse_mod_markers)
     rabi_wf = Waveform(
@@ -130,12 +143,13 @@ def make_rabi_carrier_sequence(start, stop, step, pi_amp=None,
     rabi_element = Element()
     rabi_element.add_waveform(rabi_wf)
     rabi_element.add_waveform(readout_wf)
-    rabi_element.sample_rate = p_dict['sample_rate']
+    rabi_element.sample_rate = calib_dict['sample_rate'][qubit]
 
-    marker_points = int(p_dict['marker_time'] * p_dict['sample_rate'])
+    marker_points = int(calib_dict['marker_time'][qubit] *
+                        calib_dict['sample_rate'][qubit])
     rabi_sequence = make_time_varying_sequence(
         rabi_element, channels[0], 1, variable_arg, start, stop, step, 0,
-        p_dict['cycle_time'], name='rabi_seq',
+        calib_dict['cycle_time'][qubit], name='rabi_seq',
         variable_name='pi_pulse_' + variable_arg, variable_unit='s',
         readout_ch=channels[1], marker_points=marker_points)
     rabi_sequence.labels = {'SSBfreq': None, 'seq_type': 'rabi',
@@ -147,42 +161,46 @@ def make_rabi_carrier_sequence(start, stop, step, pi_amp=None,
 def make_rabi_SSB_sequence(start, stop, step, SSBfreq, channels=[1, 2, 4],
                            gaussian=True, pulse_mod=False,
                            pi_amp=None):
-    p_dict = get_calibration_dict()
+    calib_dict = get_calibration_dict()
+    qubit = calib_dict['current_qubit']
+    pi_amp = pi_amp or calib_dict['pi_pulse_amp'][qubit]
 
-    pi_amp = pi_amp or p_dict['pi_pulse_amp']
-
-    time_after_qubit = p_dict['cycle_time'] - p_dict['pulse_end']
+    time_after_qubit = (calib_dict['cycle_time'][qubit] -
+                        calib_dict['pulse_end'][qubit])
 
     if pulse_mod:
-        pulse_mod_markers = {1: {'delay_time': [-p_dict['pulse_mod_time']],
-                                 'duration_time': [p_dict['pulse_mod_time']]}}
+        pulse_mod_markers = {
+            1: {'delay_time': [-calib_dict['pulse_mod_time'][qubit]],
+                'duration_time': [calib_dict['pulse_mod_time'][qubit]]}}
     else:
         pulse_mod_markers = None
 
     compensating_wait_segment = Segment(
-        name='compensating_wait', gen_func=flat, func_args={'amp': 0})
+        name='compensating_wait', gen_func=flat_array, func_args={'amp': 0})
 
     if gaussian:
         variable_pi_I_segment = Segment(
-            name='gaussian_SSB_pi_I_pulse', gen_func=cos_gaussian,
-            func_args={'sigma_cutoff': p_dict['sigma_cutoff'], 'amp': pi_amp,
-                       'SSBfreq': SSBfreq})
+            name='gaussian_SSB_pi_I_pulse', gen_func=cos_gaussian_array,
+            func_args={
+                'sigma_cutoff': calib_dict['sigma_cutoff'][qubit],
+                'amp': pi_amp, 'SSBfreq': SSBfreq})
         variable_pi_Q_segment = Segment(
-            name='gaussian_SSB_pi_Q_pulse', gen_func=sin_gaussian,
-            func_args={'sigma_cutoff': p_dict['sigma_cutoff'], 'amp': pi_amp,
-                       'SSBfreq': SSBfreq, 'positive': False})
+            name='gaussian_SSB_pi_Q_pulse', gen_func=sin_gaussian_array,
+            func_args={
+                'sigma_cutoff': calib_dict['sigma_cutoff'][qubit],
+                'amp': pi_amp, 'SSBfreq': SSBfreq, 'positive': False})
         variable_arg = 'sigma'
     else:
         variable_pi_I_segment = Segment(
-            name='square_SSB_pi_I_pulse', gen_func=cos_wave,
+            name='square_SSB_pi_I_pulse', gen_func=cos_array,
             func_args={'amp': pi_amp, 'freq': SSBfreq})
         variable_pi_Q_segment = Segment(
-            name='square__SSB_pi_Q_pulse', gen_func=sin_wave,
+            name='square__SSB_pi_Q_pulse', gen_func=sin_array,
             func_args={'amp': pi_amp, 'freq': SSBfreq, 'positive': False})
         variable_arg = 'dur'
 
     wait_segment = Segment(
-        name='wait', gen_func=flat,
+        name='wait', gen_func=flat_array,
         func_args={'amp': 0, 'dur': time_after_qubit},
         time_markers=pulse_mod_markers)
 
@@ -201,11 +219,12 @@ def make_rabi_SSB_sequence(start, stop, step, SSBfreq, channels=[1, 2, 4],
     rabi_element.add_waveform(rabi_Q_wf)
     rabi_element.add_waveform(readout_wf)
 
-    marker_points = int(p_dict['marker_time'] * p_dict['sample_rate'])
+    marker_points = int(calib_dict['marker_time'][qubit] *
+                        calib_dict['sample_rate'][qubit])
     rabi_sequence = make_time_multi_varying_sequence(
         rabi_element, channels[0], 1, 'sigma', start, stop, step,
         channels[1], 1, variable_arg, start, stop, step,
-        0, 0, p_dict['cycle_time'], name='rabi_ssb_seq',
+        0, 0, calib_dict['cycle_time'][qubit], name='rabi_ssb_seq',
         variable_name='pi_pulse_' + variable_arg, variable_unit='s',
         marker_ch=channels[2], marker_points=marker_points)
     rabi_sequence.labels = {'SSBfreq': SSBfreq, 'seq_type': 'rabi',
@@ -228,40 +247,43 @@ def make_rabi_sequence(start, stop, step, SSBfreq=None, channels=[1, 2, 4],
 
 
 def make_t1_carrier_sequence(start, stop, step, pi_dur=None, pi_amp=None,
-                             channels=[1, 4], gaussain=True, pulse_mod=False):
-    p_dict = get_calibration_dict()
+                             channels=[1, 4], gaussian=True, pulse_mod=False):
+    calib_dict = get_calibration_dict()
+    qubit = calib_dict['current_qubit']
+    pi_amp = pi_amp or calib_dict['pi_pulse_amp'][qubit]
 
-    pi_amp = pi_amp or p_dict['pi_pulse_amp']
-
-    time_after_qubit = p_dict['cycle_time'] - p_dict['pulse_end']
+    time_after_qubit = (calib_dict['cycle_time'][qubit] -
+                        calib_dict['pulse_end'][qubit])
 
     if pulse_mod:
-        pulse_mod_markers = {1: {'delay_time': [-p_dict['pulse_mod_time']],
-                                 'duration_time': [p_dict['pulse_mod_time']]}}
+        pulse_mod_markers = {
+            1: {'delay_time': [-calib_dict['pulse_mod_time'][qubit]],
+                'duration_time': [calib_dict['pulse_mod_time'][qubit]]}}
     else:
         pulse_mod_markers = None
 
     compensating_wait_segment = Segment(
-        name='compensating_wait', gen_func=flat, func_args={'amp': 0})
+        name='compensating_wait', gen_func=flat_array, func_args={'amp': 0})
     if gaussian:
-        pi_sigma = pi_dur or p_dict['pi_pulse_sigma']
+        pi_sigma = pi_dur or calib_dict['pi_pulse_sigma'][qubit]
         pi_segment = Segment(
-            name='gaussian_pi_pulse', gen_func=gaussian,
-            func_args={'sigma_cutoff': p_dict['sigma_cutoff'], 'amp': pi_amp,
-                       'sigma': pi_sigma})
+            name='gaussian_pi_pulse', gen_func=gaussian_array,
+            func_args={
+                'sigma_cutoff': calib_dict['sigma_cutoff'][qubit],
+                'amp': pi_amp, 'sigma': pi_sigma})
     else:
-        pi_dur = pi_dur or p_dict['pi_pulse_dur']
+        pi_dur = pi_dur or calib_dict['pi_pulse_dur'][qubit]
         pi_segment = Segment(
-            name='square_pi_pulse', gen_func=flat,
+            name='square_pi_pulse', gen_func=flat_array,
             func_args={'amp': pi_amp, 'dur': pi_dur})
 
     variable_wait_segment = Segment(
-        name='pulse_readout_delay', gen_func=flat,
+        name='pulse_readout_delay', gen_func=flat_array,
         func_args={'amp': 0},
         time_markers=pulse_mod_markers)
 
     wait_segment = Segment(
-        name='wait', gen_func=flat,
+        name='wait', gen_func=flat_array,
         func_args={'amp': 0, 'dur': time_after_qubit},
         time_markers=pulse_mod_markers)
 
@@ -275,10 +297,11 @@ def make_t1_carrier_sequence(start, stop, step, pi_dur=None, pi_amp=None,
     t1_element.add_waveform(t1_wf)
     t1_element.add_waveform(readout_wf)
 
-    marker_points = int(p_dict['marker_time'] * p_dict['sample_rate'])
+    marker_points = int(calib_dict['marker_time'][qubit] *
+                        calib_dict['sample_rate'][qubit])
     t1_sequence = make_time_varying_sequence(
         t1_element, channels[0], 2, 'dur', start, stop, step, 0,
-        p_dict['cycle_time'], name='t1_seq',
+        calib_dict['cycle_time'][qubit], name='t1_seq',
         variable_name='pi_pulse_readout_delay', variable_unit='s',
         readout_ch=channels[1], marker_points=marker_points)
     t1_sequence.labels = {'SSBfreq': None, 'seq_type': 't1',
@@ -288,51 +311,55 @@ def make_t1_carrier_sequence(start, stop, step, pi_dur=None, pi_amp=None,
 
 
 def make_t1_SSB_sequence(start, stop, step, SSBfreq, pi_dur=None,
-                         pi_amp=None, channels=[1, 2, 4], gaussain=True,
+                         pi_amp=None, channels=[1, 2, 4], gaussian=True,
                          pulse_mod=False):
-    p_dict = get_calibration_dict()
+    calib_dict = get_calibration_dict()
+    qubit = calib_dict['current_qubit']
+    pi_amp = pi_amp or calib_dict['pi_pulse_amp'][qubit]
 
-    pi_amp = pi_amp or p_dict['pi_pulse_amp']
-
-    time_after_qubit = p_dict['cycle_time'] - p_dict['pulse_end']
+    time_after_qubit = (calib_dict['cycle_time'][qubit] -
+                        calib_dict['pulse_end'][qubit])
 
     if pulse_mod:
-        pulse_mod_markers = {1: {'delay_time': [-p_dict['pulse_mod_time']],
-                                 'duration_time': [p_dict['pulse_mod_time']]}}
+        pulse_mod_markers = {
+            1: {'delay_time': [-calib_dict['pulse_mod_time'][qubit]],
+                'duration_time': [calib_dict['pulse_mod_time'][qubit]]}}
     else:
         pulse_mod_markers = None
 
     compensating_wait_segment = Segment(
-        name='compensating_wait', gen_func=flat, func_args={'amp': 0})
+        name='compensating_wait', gen_func=flat_array, func_args={'amp': 0})
 
     if gaussian:
-        pi_sigma = pi_dur or p_dict['pi_pulse_sigma']
+        pi_sigma = pi_dur or calib_dict['pi_pulse_sigma'][qubit]
         pi_I_segment = Segment(
-            name='gaussian_SSB_pi_I_pulse', gen_func=cos_gaussian,
-            func_args={'sigma_cutoff': p_dict['sigma_cutoff'], 'amp': pi_amp,
-                       'SSBfreq': SSBfreq, 'sigma': pi_sigma})
+            name='gaussian_SSB_pi_I_pulse', gen_func=cos_gaussian_array,
+            func_args={
+                'sigma_cutoff': calib_dict['sigma_cutoff'][qubit],
+                'amp': pi_amp, 'SSBfreq': SSBfreq, 'sigma': pi_sigma})
         pi_Q_segment = Segment(
-            name='gaussian_SSB_pi_Q_pulse', gen_func=sin_gaussian,
-            func_args={'sigma_cutoff': p_dict['sigma_cutoff'], 'amp': pi_amp,
-                       'SSBfreq': SSBfreq, 'sigma': pi_sigma,
-                       'positive': False})
+            name='gaussian_SSB_pi_Q_pulse', gen_func=sin_gaussian_array,
+            func_args={
+                'sigma_cutoff': calib_dict['sigma_cutoff'][qubit],
+                'amp': pi_amp,
+                'SSBfreq': SSBfreq, 'sigma': pi_sigma, 'positive': False})
     else:
-        pi_dur = pi_dur or p_dict['pi_pulse_dur']
+        pi_dur = pi_dur or calib_dict['pi_pulse_dur'][qubit]
         pi_I_segment = Segment(
-            name='square_SSB_pi_I_pulse', gen_func=cos_wave,
+            name='square_SSB_pi_I_pulse', gen_func=cos_array,
             func_args={'amp': pi_amp, 'freq': SSBfreq, 'dur': pi_dur})
         pi_Q_segment = Segment(
-            name='square_SSB_pi_Q_pulse', gen_func=sin_wave,
+            name='square_SSB_pi_Q_pulse', gen_func=sin_array,
             func_args={'amp': pi_amp, 'freq': SSBfreq, 'dur': pi_dur,
                        'positive': False})
 
     variable_wait_segment = Segment(
-        name='pulse_readout_delay', gen_func=flat,
+        name='pulse_readout_delay', gen_func=flat_array,
         func_args={'amp': 0},
         time_markers=pulse_mod_markers)
 
     wait_segment = Segment(
-        name='wait', gen_func=flat,
+        name='wait', gen_func=flat_array,
         func_args={'amp': 0, 'dur': time_after_qubit},
         time_markers=pulse_mod_markers)
 
@@ -351,11 +378,12 @@ def make_t1_SSB_sequence(start, stop, step, SSBfreq, pi_dur=None,
     t1_element.add_waveform(t1_Q_wf)
     t1_element.add_waveform(readout_wf)
 
-    marker_points = int(p_dict['marker_time'] * p_dict['sample_rate'])
+    marker_points = int(calib_dict['marker_time'][qubit] *
+                        calib_dict['sample_rate'][qubit])
     t1_sequence = make_time_multi_varying_sequence(
         t1_element, channels[0], 2, 'dur', start, stop, step,
         channels[1], 2, 'dur', start, stop, step,
-        0, 0, p_dict['cycle_time'], name='t1_ssb_seq',
+        0, 0, calib_dict['cycle_time'][qubit], name='t1_ssb_seq',
         variable_name='pi_pulse_readout_delay', variable_unit='s',
         marker_ch=channels[2], marker_points=marker_points)
     t1_sequence.labels = {'SSBfreq': SSBfreq, 'seq_type': 't1',
@@ -365,7 +393,7 @@ def make_t1_SSB_sequence(start, stop, step, SSBfreq, pi_dur=None,
 
 
 def make_t1_sequence(start, stop, step, SSBfreq=None, pi_dur=None,
-                     pi_amp=None, channels=[1, 4], gaussain=True,
+                     pi_amp=None, channels=[1, 4], gaussian=True,
                      pulse_mod=False):
     if SSBfreq is not None:
         seq = make_t1_SSB_sequence(
@@ -387,39 +415,42 @@ def make_t1_sequence(start, stop, step, SSBfreq=None, pi_dur=None,
 def make_ramsey_carrier_sequence(start, stop, step, pi_half_amp=None,
                                  pi_half_dur=None, channels=[1, 4],
                                  pulse_mod=False, gaussian=True):
-    p_dict = get_calibration_dict()
-    pi_half_amp = pi_half_amp or p_dict['pi_half_pulse_amp']
+    calib_dict = get_calibration_dict()
+    qubit = calib_dict['current_qubit']
+    pi_half_amp = pi_half_amp or calib_dict['pi_half_pulse_amp'][qubit]
 
-    time_after_qubit = p_dict['cycle_time'] - p_dict['pulse_end']
+    time_after_qubit = (calib_dict['cycle_time'][qubit] -
+                        calib_dict['pulse_end'][qubit])
 
     if pulse_mod:
-        pulse_mod_markers = {1: {'delay_time': [-p_dict['pulse_mod_time']],
-                                 'duration_time': [p_dict['pulse_mod_time']]}}
+        pulse_mod_markers = {
+            1: {'delay_time': [-calib_dict['pulse_mod_time'][qubit]],
+                'duration_time': [calib_dict['pulse_mod_time'][qubit]]}}
     else:
         pulse_mod_markers = None
 
     compensating_wait_segment = Segment(
-        name='compensating_wait', gen_func=flat, func_args={'amp': 0})
+        name='compensating_wait', gen_func=flat_array, func_args={'amp': 0})
 
     if gaussian:
-        pi_half_sigma = pi_half_dur or p_dict['pi_half_pulse_sigma']
+        pi_half_sigma = pi_half_dur or calib_dict['pi_half_pulse_sigma'][qubit]
         pi_half_segment = Segment(
-            name='gaussian_pi_pulse', gen_func=gaussian,
-            func_args={'sigma_cutoff': p_dict['sigma_cutoff'],
+            name='gaussian_pi_pulse', gen_func=gaussian_array,
+            func_args={'sigma_cutoff': calib_dict['sigma_cutoff'][qubit],
                        'amp': pi_half_amp, 'sigma': pi_half_sigma})
     else:
-        pi_half_dur = pi_half_dur or p_dict['pi_half_pulse_dur']
+        pi_half_dur = pi_half_dur or calib_dict['pi_half_pulse_dur'][qubit]
         pi_half_segment = Segment(
-            name='square_pi_pulse', gen_func=flat,
+            name='square_pi_pulse', gen_func=flat_array,
             func_args={'amp': pi_half_amp, 'dur': pi_half_dur})
 
     variable_wait_segment = Segment(
-        name='pulse_pulse_delay', gen_func=flat,
+        name='pulse_pulse_delay', gen_func=flat_array,
         func_args={'amp': 0},
         time_markers=pulse_mod_markers)
 
     wait_segment = Segment(
-        name='wait', gen_func=flat,
+        name='wait', gen_func=flat_array,
         func_args={'amp': 0, 'dur': time_after_qubit},
         time_markers=pulse_mod_markers)
 
@@ -433,12 +464,13 @@ def make_ramsey_carrier_sequence(start, stop, step, pi_half_amp=None,
     ramsey_element = Element()
     ramsey_element.add_waveform(ramsey_wf)
     ramsey_element.add_waveform(readout_wf)
-    ramsey_element.sample_rate = p_dict['sample_rate']
+    ramsey_element.sample_rate = calib_dict['sample_rate'][qubit]
 
-    marker_points = int(p_dict['marker_time'] * p_dict['sample_rate'])
+    marker_points = int(calib_dict['marker_time'][qubit] *
+                        calib_dict['sample_rate'][qubit])
     ramsey_sequence = make_time_varying_sequence(
         ramsey_element, channels[0], 2, 'dur', start, stop, step, 0,
-        p_dict['cycle_time'], name='ramsey_seq',
+        calib_dict['cycle_time'][qubit], name='ramsey_seq',
         variable_name='pi_half_pulse_pi_half_pulse_delay', variable_unit='s',
         readout_ch=channels[1], marker_points=marker_points)
     ramsey_sequence.labels = {'SSBfreq': None, 'seq_type': 'ramsey',
@@ -450,51 +482,53 @@ def make_ramsey_carrier_sequence(start, stop, step, pi_half_amp=None,
 def make_ramsey_SSB_sequence(start, stop, step, SSBfreq, pi_half_amp=None,
                              pi_half_dur=None, channels=[1, 2, 4],
                              pulse_mod=False, gaussian=True):
-    p_dict = get_calibration_dict()
+    calib_dict = get_calibration_dict()
+    qubit = calib_dict['current_qubit']
+    pi_half_amp = pi_half_amp or calib_dict['pi_half_pulse_amp'][qubit]
 
-    pi_half_amp = pi_half_amp or p_dict['pi_half_pulse_amp']
-
-    time_after_qubit = p_dict['cycle_time'] - p_dict['pulse_end']
+    time_after_qubit = (calib_dict['cycle_time'][qubit] -
+                        calib_dict['pulse_end'][qubit])
 
     if pulse_mod:
-        pulse_mod_markers = {1: {'delay_time': [-p_dict['pulse_mod_time']],
-                                 'duration_time': [p_dict['pulse_mod_time']]}}
+        pulse_mod_markers = {
+            1: {'delay_time': [-calib_dict['pulse_mod_time'][qubit]],
+                'duration_time': [calib_dict['pulse_mod_time'][qubit]]}}
     else:
         pulse_mod_markers = None
 
     compensating_wait_segment = Segment(
-        name='compensating_wait', gen_func=flat, func_args={'amp': 0})
+        name='compensating_wait', gen_func=flat_array, func_args={'amp': 0})
 
     if gaussian:
-        pi_half_sigma = pi_half_dur or p_dict['pi_half_pulse_sigma']
+        pi_half_sigma = pi_half_dur or calib_dict['pi_half_pulse_sigma'][qubit]
         pi_half_I_segment = Segment(
-            name='gaussian_SSB_pi_half_I_pulse', gen_func=cos_gaussian,
-            func_args={'sigma_cutoff': p_dict['sigma_cutoff'],
+            name='gaussian_SSB_pi_half_I_pulse', gen_func=cos_gaussian_array,
+            func_args={'sigma_cutoff': calib_dict['sigma_cutoff'][qubit],
                        'amp': pi_half_amp, 'SSBfreq': SSBfreq,
                        'sigma': pi_half_sigma})
         pi_half_Q_segment = Segment(
-            name='gaussian_SSB_pi_half_Q_pulse', gen_func=sin_gaussian,
-            func_args={'sigma_cutoff': p_dict['sigma_cutoff'],
+            name='gaussian_SSB_pi_half_Q_pulse', gen_func=sin_gaussian_array,
+            func_args={'sigma_cutoff': calib_dict['sigma_cutoff'][qubit],
                        'amp': pi_half_amp, 'SSBfreq': SSBfreq,
                        'sigma': pi_half_sigma, 'positive': False})
     else:
-        pi_half_dur = pi_half_dur or p_dict['pi_half_pulse_sigma']
+        pi_half_dur = pi_half_dur or calib_dict['pi_half_pulse_sigma'][qubit]
         pi_half_I_segment = Segment(
-            name='square_SSB_pi_half_I_pulse', gen_func=cos_wave,
+            name='square_SSB_pi_half_I_pulse', gen_func=cos_array,
             func_args={'amp': pi_half_amp, 'freq': SSBfreq,
                        'dur': pi_half_dur})
         pi_half_Q_segment = Segment(
-            name='square_SSB_pi_half_Q_pulse', gen_func=sin_wave,
+            name='square_SSB_pi_half_Q_pulse', gen_func=sin_array,
             func_args={'amp': pi_half_amp, 'freq': SSBfreq,
                        'dur': pi_half_dur, 'positive': False})
 
     variable_wait_segment = Segment(
-        name='pulse_readout_delay', gen_func=flat,
+        name='pulse_readout_delay', gen_func=flat_array,
         func_args={'amp': 0},
         time_markers=pulse_mod_markers)
 
     wait_segment = Segment(
-        name='wait', gen_func=flat,
+        name='wait', gen_func=flat_array,
         func_args={'amp': 0, 'dur': time_after_qubit},
         time_markers=pulse_mod_markers)
 
@@ -513,11 +547,12 @@ def make_ramsey_SSB_sequence(start, stop, step, SSBfreq, pi_half_amp=None,
     ramsey_element.add_waveform(ramsey_Q_wf)
     ramsey_element.add_waveform(readout_wf)
 
-    marker_points = int(p_dict['marker_time'] * p_dict['sample_rate'])
+    marker_points = int(calib_dict['marker_time'][qubit] *
+                        calib_dict['sample_rate'][qubit])
     ramsey_sequence = make_time_multi_varying_sequence(
         ramsey_element, channels[0], 2, 'dur', start, stop, step,
         channels[1], 2, 'dur', start, stop, step,
-        0, 0, p_dict['cycle_time'], name='ramsey_ssb_seq',
+        0, 0, calib_dict['cycle_time'][qubit], name='ramsey_ssb_seq',
         variable_name='pi_half_pulse_pi_half_pulse_delay', variable_unit='s',
         marker_ch=channels[2], marker_points=marker_points)
     ramsey_sequence.labels = {'SSBfreq': SSBfreq, 'seq_type': 'ramsey',
