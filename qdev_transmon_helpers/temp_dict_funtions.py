@@ -27,11 +27,9 @@ default_pulse_dict = {'cycle_time': 20e-6, 'sample_rate': 1e9,
                       'marker_readout_delay': 0, 'qubit_spec_time': 1e-6,
                       'pulse_mod_time': 1.5e-6, 'pi_pulse_amp': 1,
                       'pi_half_pulse_amp': 0.5, 'pi_pulse_sigma': None,
-                      'pi_half_pulse_sigma': None, 'pi_pulse_dur': None,
-                      'pi_half_pulse_dur': None, 'sigma_cutoff': 4,
+                      'pi_pulse_dur': None, 'sigma_cutoff': 4,
                       'z_pulse_amp': None, 'z_pulse_dur': None,
-                      'z_half_pulse_amp': None, 'z_half_pulse_dur': None,
-                      'drag_coef': 0.5}
+                      'z_half_pulse_amp': None, 'drag_coef': 0.5}
 
 
 def dd_f():

@@ -10,3 +10,4 @@ from ..math_functions import *
 from .helpers import *
 from .basic import *
 from .allxy import *
+from .benchmarking import *

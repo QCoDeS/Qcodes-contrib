@@ -26,7 +26,7 @@ def make_readout_wf(first_in_seq=False, channel=4):
     qubit = calib_dict['current_qubit']
     measurement_segment = Segment(
         name='cavity_measurement',
-        gen_fuvnc=flat_array,
+        gen_func=flat_array,
         func_args={'amp': 1, 'dur': calib_dict['readout_time'][qubit]},
         time_markers={
             1: {'delay_time': [calib_dict['marker_readout_delay'][qubit]],
@@ -38,10 +38,12 @@ def make_readout_wf(first_in_seq=False, channel=4):
                           calib_dict['pulse_end'][qubit] -
                           calib_dict['pulse_readout_delay'][qubit] -
                           calib_dict['readout_time'][qubit])
-    wait1_segment = Segment(name='wait_before_readout', gen_func=flat_array,
-                            func_args={'amp': 0, 'dur': time_before_readout})
-    wait2_segment = Segment(name='wait_after_readout', gen_func=flat_array,
-                            func_args={'amp': 0, 'dur': time_after_readout})
+    wait1_segment = Segment(
+        name='wait_before_measurement', gen_func=flat_array,
+        func_args={'amp': 0, 'dur': time_before_readout})
+    wait2_segment = Segment(
+        name='wait_after_measurement', gen_func=flat_array,
+        func_args={'amp': 0, 'dur': time_after_readout})
     readout_wf = Waveform(
         channel=channel,
         segment_list=[wait1_segment, measurement_segment, wait2_segment],
@@ -148,12 +150,14 @@ def make_time_multi_varying_sequence(element_template,
         elem = element_template.copy()
         elem[vary_ch_1].segment_list[vary_seg_1].func_args[
             arg_to_vary_1] = val
-        elem[vary_ch_1].segment_list[compensate_seg_1].func_args[
-            "dur"] = total_time - elem[vary_ch_1].duration
+        c1_dur = total_time - elem[vary_ch_1].duration
+        elem[vary_ch_1].segment_list[
+            compensate_seg_1].func_args["dur"] = c1_dur
         elem[vary_ch_2].segment_list[vary_seg_2].func_args[
             arg_to_vary_2] = variable_array_2[i]
-        elem[vary_ch_2].segment_list[compensate_seg_2].func_args[
-            "dur"] = total_time - elem[vary_ch_2].duration
+        c2_dur = total_time - elem[vary_ch_2].duration
+        elem[vary_ch_2].segment_list[
+            compensate_seg_2].func_args["dur"] = c2_dur
         if i == 0:
             elem[readout_ch].add_marker(2, 0, marker_points)
         sequence.add_element(elem)
@@ -166,245 +170,338 @@ def make_time_multi_varying_sequence(element_template,
 
 def make_x_y_carrier_gaussian_pulses(params, drag=False):
     pulse_dict = {}
-    x_y_wait_pulse = Segment(
-        name='wait_for_x_y_pulse', gen_func=flat_array,
+    x_y_wait = Segment(
+        name='XY_wait', gen_func=flat_array,
         func_args={
             'amp': 0,
             'dur': 2 * params['pi_pulse_sigma'] * params['sigma_cutoff']})
 
-    x_y_pi_pulse = Segment(
-        name='pi_pulse', gen_func=gaussian_array,
+    x_y_pi = Segment(
+        name='pi', gen_func=gaussian_array,
         func_args={'sigma': params['pi_pulse_sigma'],
                    'sigma_cutoff': params['sigma_cutoff'],
                    'amp': params['pi_pulse_amp']})
 
-    x_y_pi_half_pulse = Segment(
-        name='pi_half_pulse', gen_func=gaussian_array,
+    x_y_pi_half = Segment(
+        name='pi/2', gen_func=gaussian_array,
         func_args={'sigma': params['pi_pulse_sigma'],
                    'sigma_cutoff': params['sigma_cutoff'],
                    'amp': params['pi_half_pulse_amp']})
 
-    pulse_dict['x_y_wait'] = x_y_wait_pulse
+    x_y_pi_half_neg = Segment(
+        name='-pi/2', gen_func=gaussian_array,
+        func_args={'sigma': params['pi_pulse_sigma'],
+                   'sigma_cutoff': params['sigma_cutoff'],
+                   'amp': params['pi_half_pulse_amp'],
+                   'positive': False})
+
+    pulse_dict['XY_wait'] = x_y_wait
+    pulse_dict['X_I'] = x_y_pi
+    pulse_dict['X/2_I'] = x_y_pi_half
+    pulse_dict['-X/2_I'] = x_y_pi_half_neg
+    pulse_dict['Y_Q'] = x_y_pi
+    pulse_dict['Y/2_Q'] = x_y_pi_half
+    pulse_dict['-Y/2_Q'] = x_y_pi_half_neg
     if drag:
-        x_y_pi_pulse_drag = Segment(
-            name='pi_pulse_drag',
+        x_y_pi_drag = Segment(
+            name='pi_drag',
             gen_func=gaussian_derivative_array,
             func_args={'sigma': params['pi_pulse_sigma'],
                        'sigma_cutoff': params['sigma_cutoff'],
                        'amp': (params['pi_pulse_amp'] *
                                params['drag_coef'])})
 
-        x_y_pi_half_pulse_drag = Segment(
-            name='pi_half_pulse_drag',
+        x_y_pi_half_drag = Segment(
+            name='pi/2_drag',
             gen_func=gaussian_derivative_array,
             func_args={'sigma': params['pi_pulse_sigma'],
                        'sigma_cutoff': params['sigma_cutoff'],
                        'amp': (params['pi_half_pulse_amp'] *
                                params['drag_coef'])})
-        pulse_dict['pi_x_I'] = x_y_pi_pulse
-        pulse_dict['pi_x_Q'] = x_y_pi_pulse_drag
-        pulse_dict['pi_half_x_I'] = x_y_pi_half_pulse
-        pulse_dict['pi_half_x_Q'] = x_y_pi_half_pulse_drag
-        pulse_dict['pi_y_I'] = x_y_pi_pulse_drag
-        pulse_dict['pi_y_Q'] = x_y_pi_pulse
-        pulse_dict['pi_half_y_I'] = x_y_pi_half_pulse_drag
-        pulse_dict['pi_half_y_Q'] = x_y_pi_half_pulse
+
+        x_y_pi_half_neg_drag = Segment(
+            name='-pi/2_drag',
+            gen_func=gaussian_derivative_array,
+            func_args={'sigma': params['pi_pulse_sigma'],
+                       'sigma_cutoff': params['sigma_cutoff'],
+                       'amp': (params['pi_half_pulse_amp'] *
+                               params['drag_coef']),
+                       'positive': False})
+
+        pulse_dict['X_Q'] = x_y_pi_drag
+        pulse_dict['X/2_Q'] = x_y_pi_half_drag
+        pulse_dict['-X/2_Q'] = x_y_pi_half_neg_drag
+        pulse_dict['Y_I'] = x_y_pi_drag
+        pulse_dict['Y/2_I'] = x_y_pi_half_drag
+        pulse_dict['-Y/2_I'] = x_y_pi_half_neg_drag
     else:
-        pulse_dict['pi_x_I'] = x_y_pi_pulse
-        pulse_dict['pi_x_Q'] = x_y_wait_pulse
-        pulse_dict['pi_half_x_I'] = x_y_pi_half_pulse
-        pulse_dict['pi_half_x_Q'] = x_y_wait_pulse
-        pulse_dict['pi_y_I'] = x_y_wait_pulse
-        pulse_dict['pi_y_Q'] = x_y_pi_pulse
-        pulse_dict['pi_half_y_I'] = x_y_wait_pulse
-        pulse_dict['pi_half_y_Q'] = x_y_pi_half_pulse
+        pulse_dict['X_Q'] = x_y_wait
+        pulse_dict['X/2_Q'] = x_y_wait
+        pulse_dict['-X/2_Q'] = x_y_wait
+        pulse_dict['Y_I'] = x_y_wait
+        pulse_dict['Y/2_I'] = x_y_wait
+        pulse_dict['-Y/2_I'] = x_y_wait
     return pulse_dict
 
 
 def make_x_y_carrier_flat_pulses(params):
     pulse_dict = {}
-    x_y_wait_pulse = Segment(
-        name='wait_for_x_y_pulse', gen_func=flat_array,
+    x_y_wait = Segment(
+        name='XY_wait', gen_func=flat_array,
         func_args={
             'amp': 0,
             'dur': 2 * params['pi_pulse_sigma'] * params['sigma_cutoff']})
 
-    x_y_pi_pulse = Segment(
-        name='pi_pulse', gen_func=flat_array,
+    x_y_pi = Segment(
+        name='pi', gen_func=flat_array,
         func_args={'dur': params['pi_pulse_dur'],
                    'amp': params['pi_pulse_amp']})
 
-    x_y_pi_half_pulse = Segment(
-        name='pi_half_pulse', gen_func=flat_array,
-        func_args={'dur': params['pi_half_pulse_dur'],
+    x_y_pi_half = Segment(
+        name='pi/2', gen_func=flat_array,
+        func_args={'dur': params['pi_pulse_dur'],
                    'amp': params['pi_half_pulse_amp']})
 
-    pulse_dict['x_y_wait'] = x_y_wait_pulse
-    pulse_dict['pi_x_I'] = x_y_pi_pulse
-    pulse_dict['pi_x_Q'] = x_y_wait_pulse
-    pulse_dict['pi_half_x_I'] = x_y_pi_half_pulse
-    pulse_dict['pi_half_x_Q'] = x_y_wait_pulse
-    pulse_dict['pi_y_I'] = x_y_wait_pulse
-    pulse_dict['pi_y_Q'] = x_y_pi_pulse
-    pulse_dict['pi_half_y_I'] = x_y_wait_pulse
-    pulse_dict['pi_half_y_Q'] = x_y_pi_half_pulse
+    x_y_pi_half_neg = Segment(
+        name='-pi/2', gen_func=flat_array,
+        func_args={'dur': params['pi_pulse_dur'],
+                   'amp': -1 * params['pi_half_pulse_amp']})
+
+    pulse_dict['XY_wait'] = x_y_wait
+    pulse_dict['X_I'] = x_y_pi
+    pulse_dict['X_Q'] = x_y_wait
+    pulse_dict['X/2_I'] = x_y_pi_half
+    pulse_dict['X/2_Q'] = x_y_wait
+    pulse_dict['-X/2_I'] = x_y_pi_half_neg
+    pulse_dict['-X/2_Q'] = x_y_wait
+    pulse_dict['Y_I'] = x_y_wait
+    pulse_dict['Y_Q'] = x_y_pi
+    pulse_dict['Y/2_I'] = x_y_wait
+    pulse_dict['Y/2_Q'] = x_y_pi_half
+    pulse_dict['-Y/2_I'] = x_y_wait
+    pulse_dict['-Y/2_Q'] = x_y_pi_half_neg
     return pulse_dict
 
 
 def make_x_y_ssb_gaussian_pulses(params, SSBfreq):
     pulse_dict = {}
-    x_y_wait_pulse = Segment(
-        name='wait_for_x_y_pulse', gen_func=flat_array,
+    x_y_wait = Segment(
+        name='XY_wait', gen_func=flat_array,
         func_args={
             'amp': 0,
             'dur': 2 * params['pi_pulse_sigma'] * params['sigma_cutoff']})
-    ssb_pi_pulse_x_I = Segment(
-        name='pi_pulse_x_I', gen_func=cos_gaussian_array,
+    ssb_pi_x_I = Segment(
+        name='X_I', gen_func=cos_gaussian_array,
         func_args={'sigma': params['pi_pulse_sigma'],
                    'sigma_cutoff': params['sigma_cutoff'],
                    'SSBfreq': SSBfreq,
                    'amp': params['pi_pulse_amp']})
-    ssb_pi_pulse_x_Q = Segment(
-        name='pi_pulse_x_Q', gen_func=sin_gaussian_array,
+    ssb_pi_x_Q = Segment(
+        name='X_Q', gen_func=sin_gaussian_array,
         func_args={'sigma': params['pi_pulse_sigma'],
                    'sigma_cutoff': params['sigma_cutoff'],
                    'SSBfreq': SSBfreq,
                    'amp': params['pi_pulse_amp'],
                    'positive': False})
-    ssb_pi_half_pulse_x_I = Segment(
-        name='pi_half_pulse_x_I', gen_func=cos_gaussian_array,
+    ssb_pi_half_x_I = Segment(
+        name='X/2_I', gen_func=cos_gaussian_array,
         func_args={'sigma': params['pi_pulse_sigma'],
                    'sigma_cutoff': params['sigma_cutoff'],
                    'SSBfreq': SSBfreq,
                    'amp': params['pi_half_pulse_amp']})
-    ssb_pi_half_pulse_x_Q = Segment(
-        name='pi_pulse_x_Q', gen_func=sin_gaussian_array,
+    ssb_pi_half_x_Q = Segment(
+        name='X/2_Q', gen_func=sin_gaussian_array,
         func_args={'sigma': params['pi_pulse_sigma'],
                    'sigma_cutoff': params['sigma_cutoff'],
                    'SSBfreq': SSBfreq,
                    'amp': params['pi_half_pulse_amp'],
                    'positive': False})
-    ssb_pi_pulse_y_I = Segment(
-        name='pi_pulse_y_I', gen_func=sin_gaussian_array,
+    ssb_pi_half_neg_x_I = Segment(
+        name='-X/2_I', gen_func=cos_gaussian_array,
         func_args={'sigma': params['pi_pulse_sigma'],
                    'sigma_cutoff': params['sigma_cutoff'],
                    'SSBfreq': SSBfreq,
-                   'amp': params['pi_pulse_amp']})
-    ssb_pi_pulse_y_Q = Segment(
-        name='pi_pulse_y_Q', gen_func=cos_gaussian_array,
-        func_args={'sigma': params['pi_pulse_sigma'],
-                   'sigma_cutoff': params['sigma_cutoff'],
-                   'SSBfreq': SSBfreq,
-                   'amp': params['pi_pulse_amp']})
-    ssb_pi_half_pulse_y_I = Segment(
-        name='pi_half_pulse_y_I', gen_func=sin_gaussian_array,
+                   'amp': params['pi_half_pulse_amp'],
+                   'positive': False})
+    ssb_pi_half_neg_x_Q = Segment(
+        name='-X/2_Q', gen_func=sin_gaussian_array,
         func_args={'sigma': params['pi_pulse_sigma'],
                    'sigma_cutoff': params['sigma_cutoff'],
                    'SSBfreq': SSBfreq,
                    'amp': params['pi_half_pulse_amp']})
-    ssb_pi_half_pulse_y_Q = Segment(
-        name='pi_half_pulse_y_Q', gen_func=cos_gaussian_array,
+    ssb_pi_y_I = Segment(
+        name='Y_I', gen_func=sin_gaussian_array,
+        func_args={'sigma': params['pi_pulse_sigma'],
+                   'sigma_cutoff': params['sigma_cutoff'],
+                   'SSBfreq': SSBfreq,
+                   'amp': params['pi_pulse_amp']})
+    ssb_pi_y_Q = Segment(
+        name='Y_Q', gen_func=cos_gaussian_array,
+        func_args={'sigma': params['pi_pulse_sigma'],
+                   'sigma_cutoff': params['sigma_cutoff'],
+                   'SSBfreq': SSBfreq,
+                   'amp': params['pi_pulse_amp']})
+    ssb_pi_half_y_I = Segment(
+        name='Y/2_I', gen_func=sin_gaussian_array,
         func_args={'sigma': params['pi_pulse_sigma'],
                    'sigma_cutoff': params['sigma_cutoff'],
                    'SSBfreq': SSBfreq,
                    'amp': params['pi_half_pulse_amp']})
-    pulse_dict['x_y_wait'] = x_y_wait_pulse
-    pulse_dict['pi_x_I'] = ssb_pi_pulse_x_I
-    pulse_dict['pi_x_Q'] = ssb_pi_pulse_x_Q
-    pulse_dict['pi_half_x_I'] = ssb_pi_half_pulse_x_I
-    pulse_dict['pi_half_x_Q'] = ssb_pi_half_pulse_x_Q
-    pulse_dict['pi_y_I'] = ssb_pi_pulse_y_I
-    pulse_dict['pi_y_Q'] = ssb_pi_pulse_y_Q
-    pulse_dict['pi_half_y_I'] = ssb_pi_half_pulse_y_I
-    pulse_dict['pi_half_y_Q'] = ssb_pi_half_pulse_y_Q
+    ssb_pi_half_y_Q = Segment(
+        name='Y/2_Q', gen_func=cos_gaussian_array,
+        func_args={'sigma': params['pi_pulse_sigma'],
+                   'sigma_cutoff': params['sigma_cutoff'],
+                   'SSBfreq': SSBfreq,
+                   'amp': params['pi_half_pulse_amp']})
+    ssb_pi_half_neg_y_I = Segment(
+        name='-Y/2_I', gen_func=sin_gaussian_array,
+        func_args={'sigma': params['pi_pulse_sigma'],
+                   'sigma_cutoff': params['sigma_cutoff'],
+                   'SSBfreq': SSBfreq,
+                   'amp': params['pi_half_pulse_amp'],
+                   'positive': False})
+    ssb_pi_half_neg_y_Q = Segment(
+        name='-Y/2_Q', gen_func=cos_gaussian_array,
+        func_args={'sigma': params['pi_pulse_sigma'],
+                   'sigma_cutoff': params['sigma_cutoff'],
+                   'SSBfreq': SSBfreq,
+                   'amp': params['pi_half_pulse_amp'],
+                   'positive': False})
+    pulse_dict['XY_wait'] = x_y_wait
+    pulse_dict['X_I'] = ssb_pi_x_I
+    pulse_dict['X_Q'] = ssb_pi_x_Q
+    pulse_dict['X/2_I'] = ssb_pi_half_x_I
+    pulse_dict['X/2_Q'] = ssb_pi_half_x_Q
+    pulse_dict['-X/2_I'] = ssb_pi_half_neg_x_I
+    pulse_dict['-X/2_Q'] = ssb_pi_half_neg_x_Q
+    pulse_dict['Y_I'] = ssb_pi_y_I
+    pulse_dict['Y_Q'] = ssb_pi_y_Q
+    pulse_dict['Y/2_I'] = ssb_pi_half_y_I
+    pulse_dict['Y/2_Q'] = ssb_pi_half_y_Q
+    pulse_dict['-Y/2_I'] = ssb_pi_half_neg_y_I
+    pulse_dict['-Y/2_Q'] = ssb_pi_half_neg_y_Q
 
     return pulse_dict
 
 
 def make_x_y_ssb_flat_pulses(params, SSBfreq):
     pulse_dict = {}
-    x_y_wait_pulse = Segment(
-        name='wait_for_x_y_pulse', gen_func=flat_array,
+    x_y_wait = Segment(
+        name='XY_wait', gen_func=flat_array,
         func_args={
             'amp': 0,
             'dur': 2 * params['pi_pulse_sigma'] * params['sigma_cutoff']})
-    ssb_pi_pulse_x_I = Segment(
-        name='pi_pulse_x_I', gen_func=cos_array,
+    ssb_pi_x_I = Segment(
+        name='X_I', gen_func=cos_array,
         func_args={'freq': SSBfreq,
                    'dur': params['pi_pulse_dur'],
                    'amp': params['pi_pulse_amp']})
-    ssb_pi_pulse_x_Q = Segment(
-        name='pi_pulse_x_Q', gen_func=sin_array,
+    ssb_pi_x_Q = Segment(
+        name='X_Q', gen_func=sin_array,
         func_args={'freq': SSBfreq,
                    'dur': params['pi_pulse_dur'],
                    'amp': params['pi_pulse_amp'],
                    'positive': False})
-    ssb_pi_half_pulse_x_I = Segment(
-        name='pi_half_pulse_x_I', gen_func=cos_array,
+    ssb_pi_half_x_I = Segment(
+        name='X/2_I', gen_func=cos_array,
         func_args={'freq': SSBfreq,
-                   'dur': params['pi_half_pulse_dur'],
+                   'dur': params['pi_pulse_dur'],
                    'amp': params['pi_half_pulse_amp']})
-    ssb_pi_half_pulse_x_Q = Segment(
-        name='pi_pulse_x_Q', gen_func=sin_array,
+    ssb_pi_half_x_Q = Segment(
+        name='X/2_Q', gen_func=sin_array,
         func_args={'freq': SSBfreq,
-                   'dur': params['pi_half_pulse_dur'],
+                   'dur': params['pi_pulse_dur'],
                    'amp': params['pi_half_pulse_amp'],
                    'positive': False})
-    ssb_pi_pulse_y_I = Segment(
-        name='pi_pulse_y_I', gen_func=sin_array,
+    ssb_pi_half_neg_x_I = Segment(
+        name='-X/2_I', gen_func=cos_array,
         func_args={'freq': SSBfreq,
                    'dur': params['pi_pulse_dur'],
-                   'amp': params['pi_pulse_amp']})
-    ssb_pi_pulse_y_Q = Segment(
-        name='pi_pulse_y_Q', gen_func=cos_array,
+                   'amp': params['pi_half_pulse_amp'],
+                   'positive': False})
+    ssb_pi_half_neg_x_Q = Segment(
+        name='-X/2_Q', gen_func=sin_array,
         func_args={'freq': SSBfreq,
                    'dur': params['pi_pulse_dur'],
-                   'amp': params['pi_pulse_amp']})
-    ssb_pi_half_pulse_y_I = Segment(
-        name='pi_half_pulse_y_I', gen_func=sin_array,
-        func_args={'freq': SSBfreq,
-                   'dur': params['pi_half_pulse_dur'],
-                   'amp': params['pi_pulse_amp']})
-    ssb_pi_half_pulse_y_Q = Segment(
-        name='pi_half_pulse_y_Q', gen_func=cos_array,
-        func_args={'freq': SSBfreq,
-                   'dur': params['pi_half_pulse_dur'],
                    'amp': params['pi_half_pulse_amp']})
-    pulse_dict['x_y_wait'] = x_y_wait_pulse
-    pulse_dict['pi_x_I'] = ssb_pi_pulse_x_I
-    pulse_dict['pi_x_Q'] = ssb_pi_pulse_x_Q
-    pulse_dict['pi_half_x_I'] = ssb_pi_half_pulse_x_I
-    pulse_dict['pi_half_x_Q'] = ssb_pi_half_pulse_x_Q
-    pulse_dict['pi_y_I'] = ssb_pi_pulse_y_I
-    pulse_dict['pi_y_Q'] = ssb_pi_pulse_y_Q
-    pulse_dict['pi_half_y_I'] = ssb_pi_half_pulse_y_I
-    pulse_dict['pi_half_y_Q'] = ssb_pi_half_pulse_y_Q
+    ssb_pi_y_I = Segment(
+        name='Y_I', gen_func=sin_array,
+        func_args={'freq': SSBfreq,
+                   'dur': params['pi_pulse_dur'],
+                   'amp': params['pi_pulse_amp']})
+    ssb_pi_y_Q = Segment(
+        name='Y_Q', gen_func=cos_array,
+        func_args={'freq': SSBfreq,
+                   'dur': params['pi_pulse_dur'],
+                   'amp': params['pi_pulse_amp']})
+    ssb_pi_half_y_I = Segment(
+        name='Y/2_I', gen_func=sin_array,
+        func_args={'freq': SSBfreq,
+                   'dur': params['pi_pulse_dur'],
+                   'amp': params['pi_pulse_amp']})
+    ssb_pi_half_y_Q = Segment(
+        name='Y/2_Q', gen_func=cos_array,
+        func_args={'freq': SSBfreq,
+                   'dur': params['pi_pulse_dur'],
+                   'amp': params['pi_half_pulse_amp']})
+    ssb_pi_half_neg_y_I = Segment(
+        name='-Y/2_I', gen_func=sin_array,
+        func_args={'freq': SSBfreq,
+                   'dur': params['pi_pulse_dur'],
+                   'amp': params['pi_pulse_amp'],
+                   'positive': False})
+    ssb_pi_half_neg_y_Q = Segment(
+        name='-Y/2_Q', gen_func=cos_array,
+        func_args={'freq': SSBfreq,
+                   'dur': params['pi_pulse_dur'],
+                   'amp': params['pi_half_pulse_amp'],
+                   'positive': False})
+    pulse_dict['XY_wait'] = x_y_wait
+    pulse_dict['X_I'] = ssb_pi_x_I
+    pulse_dict['X_Q'] = ssb_pi_x_Q
+    pulse_dict['X/2_I'] = ssb_pi_half_x_I
+    pulse_dict['X/2_Q'] = ssb_pi_half_x_Q
+    pulse_dict['-X/2_I'] = ssb_pi_half_neg_x_I
+    pulse_dict['-X/2_Q'] = ssb_pi_half_neg_x_Q
+    pulse_dict['Y_I'] = ssb_pi_y_I
+    pulse_dict['Y_Q'] = ssb_pi_y_Q
+    pulse_dict['Y/2_I'] = ssb_pi_half_y_I
+    pulse_dict['Y/2_Q'] = ssb_pi_half_y_Q
+    pulse_dict['-Y/2_I'] = ssb_pi_half_neg_y_I
+    pulse_dict['-Y/2_Q'] = ssb_pi_half_neg_y_Q
 
     return pulse_dict
 
 
 def make_z_pulses(params):
     pulse_dict = {}
-    z_pi_pulse = Segment(name='pi_pulse_z', gen_func=flat_array,
-                         func_args={'dur': params['z_pulse_dur'],
-                                    'amp': params['z_pulse_amp']})
+    z_pi = Segment(
+        name='Z', gen_func=flat_array,
+        func_args={'dur': params['z_pulse_dur'],
+                   'amp': params['z_pulse_amp']})
 
-    z_pi_half_pulse = Segment(name='pi_half_pulse_z', gen_func=flat_array,
-                              func_args={'dur': params['z_pulse_dur'],
-                                         'amp': params['z_half_pulse_amp']})
-    z_wait_pulse = Segment(
-        name='wait_for_z_pulse', gen_func=flat_array,
+    z_pi_half = Segment(
+        name='Z/2', gen_func=flat_array,
+        func_args={'dur': params['z_pulse_dur'],
+                   'amp': params['z_half_pulse_amp']})
+    z_pi_half_neg = Segment(
+        name='-Z/2', gen_func=flat_array,
+        func_args={'dur': params['z_pulse_dur'],
+                   'amp': -1 * params['z_half_pulse_amp']})
+    z_wait = Segment(
+        name='Z_wait', gen_func=flat_array,
         func_args={'amp': 0, 'dur': params['z_pulse_dur']})
-    pulse_dict['pi_z'] = z_pi_pulse
-    pulse_dict['pi_half_z'] = z_pi_half_pulse
-    pulse_dict['z_wait'] = z_wait_pulse
+    pulse_dict['Z'] = z_pi
+    pulse_dict['Z/2'] = z_pi_half
+    pulse_dict['-Z/2'] = z_pi_half_neg
+    pulse_dict['Z_wait'] = z_wait
 
     return pulse_dict
 
 
 def make_pulse_dict(pulse_params={}, qubit_num=None,
                     SSBfreq=None, gaussian=True,
-                    drag=False):
+                    drag=False, z_gates=False):
     """
     Function which returns a dictionary of pulses for gates based on the
     current calibration dictionary values (or optionally those specified in a
@@ -421,6 +518,8 @@ def make_pulse_dict(pulse_params={}, qubit_num=None,
     """
     if drag and SSBfreq is not None:
         raise Exception('Cannot use drag pulse and ssb pulses.')
+    if drag and not gaussian:
+        raise Exception('Cannot use drag and square pulses.')
 
     calib_dict = get_calibration_dict()
     qubit = qubit_num or calib_dict['current_qubit']
@@ -442,7 +541,7 @@ def make_pulse_dict(pulse_params={}, qubit_num=None,
                           'duration_time': [params['marker_time']]}})
 
     measurement_wait = Segment(
-        name='wait_for_measurement', gen_func=flat_array,
+        name='wait_measurement', gen_func=flat_array,
         func_args={'amp': 0, 'dur': params['readout_time']})
 
     identity = Segment(
@@ -472,26 +571,31 @@ def make_pulse_dict(pulse_params={}, qubit_num=None,
             params)
     pulse_dict.update(pulses)
 
-    z_pulses = make_z_pulses(params)
-    pulse_dict.update(z_pulses)
+    if z_gates:
+        z_pulses = make_z_pulses(params)
+        pulse_dict.update(z_pulses)
 
     return pulse_dict
 
 
 def do_x_pi(element, pulse_dict, channels=[1, 2, 3, 4]):
-    i_pulse = pulse_dict['pi_x_I']
-    q_pulse = pulse_dict['pi_x_Q']
-    identity = pulse_dict['x_y_wait']
+    i_pulse = pulse_dict['X_I']
+    q_pulse = pulse_dict['X_Q']
+    identity = pulse_dict['XY_wait']
     element[channels[0]].add_segment(i_pulse)
     element[channels[1]].add_segment(q_pulse)
     element[channels[2]].add_segment(identity)
     element[channels[3]].add_segment(identity)
 
 
-def do_x_pi_half(element, pulse_dict, channels=[1, 2, 3, 4]):
-    i_pulse = pulse_dict['pi_half_x_I']
-    q_pulse = pulse_dict['pi_half_x_Q']
-    identity = pulse_dict['x_y_wait']
+def do_x_pi_half(element, pulse_dict, channels=[1, 2, 3, 4], positive=True):
+    identity = pulse_dict['XY_wait']
+    if positive:
+        i_pulse = pulse_dict['X/2_I']
+        q_pulse = pulse_dict['X/2_Q']
+    else:
+        i_pulse = pulse_dict['-X/2_I']
+        q_pulse = pulse_dict['-X/2_Q']
     element[channels[0]].add_segment(i_pulse)
     element[channels[1]].add_segment(q_pulse)
     element[channels[2]].add_segment(identity)
@@ -499,19 +603,23 @@ def do_x_pi_half(element, pulse_dict, channels=[1, 2, 3, 4]):
 
 
 def do_y_pi(element, pulse_dict, channels=[1, 2, 3, 4]):
-    i_pulse = pulse_dict['pi_y_I']
-    q_pulse = pulse_dict['pi_y_Q']
-    identity = pulse_dict['x_y_wait']
+    i_pulse = pulse_dict['Y_I']
+    q_pulse = pulse_dict['Y_Q']
+    identity = pulse_dict['XY_wait']
     element[channels[0]].add_segment(i_pulse)
     element[channels[1]].add_segment(q_pulse)
     element[channels[2]].add_segment(identity)
     element[channels[3]].add_segment(identity)
 
 
-def do_y_pi_half(element, pulse_dict, channels=[1, 2, 3, 4]):
-    i_pulse = pulse_dict['pi_half_y_I']
-    q_pulse = pulse_dict['pi_half_y_Q']
-    identity = pulse_dict['x_y_wait']
+def do_y_pi_half(element, pulse_dict, channels=[1, 2, 3, 4], positive=True):
+    identity = pulse_dict['XY_wait']
+    if positive:
+        i_pulse = pulse_dict['Y/2_I']
+        q_pulse = pulse_dict['Y/2_Q']
+    else:
+        i_pulse = pulse_dict['-Y/2_I']
+        q_pulse = pulse_dict['-Y/2_Q']
     element[channels[0]].add_segment(i_pulse)
     element[channels[1]].add_segment(q_pulse)
     element[channels[2]].add_segment(identity)
@@ -519,17 +627,20 @@ def do_y_pi_half(element, pulse_dict, channels=[1, 2, 3, 4]):
 
 
 def do_z_pi(element, pulse_dict, channels=[1, 2, 3, 4]):
-    identity = pulse_dict['z_wait']
-    z_pulse = pulse_dict['pi_z']
+    identity = pulse_dict['Z_wait']
+    z_pulse = pulse_dict['Z']
     element[channels[0]].add_segment(identity)
     element[channels[1]].add_segment(identity)
     element[channels[2]].add_segment(z_pulse)
     element[channels[3]].add_segment(identity)
 
 
-def do_z_pi_half(element, pulse_dict, channels=[1, 2, 3, 4]):
-    identity = pulse_dict['z_wait']
-    z_pulse = pulse_dict['pi_half_z']
+def do_z_pi_half(element, pulse_dict, channels=[1, 2, 3, 4], positive=True):
+    identity = pulse_dict['Z_wait']
+    if positive:
+        z_pulse = pulse_dict['Z/2']
+    else:
+        z_pulse = pulse_dict['-Z/2']
     element[channels[0]].add_segment(identity)
     element[channels[1]].add_segment(identity)
     element[channels[2]].add_segment(z_pulse)
@@ -537,7 +648,7 @@ def do_z_pi_half(element, pulse_dict, channels=[1, 2, 3, 4]):
 
 
 def do_identity(element, pulse_dict, channels=[1, 2, 3, 4]):
-    identity = pulse_dict['x_y_wait']
+    identity = pulse_dict['XY_wait']
     element[channels[0]].add_segment(identity)
     element[channels[1]].add_segment(identity)
     element[channels[2]].add_segment(identity)
@@ -572,27 +683,67 @@ def prepend_compensating_wait_to_element(element, pulse_dict, total_time):
 def execute_gates(element, pulse_dict, gate_list,
                   channels=[1, 2, 3, 4], spacing=None):
     for i in gate_list:
-        if i is 'id':
+        if i == 'I':
             do_identity(element, pulse_dict, channels=channels)
-        if i is 'x_pi':
+        if i == 'X':
             do_x_pi(element, pulse_dict, channels=channels)
-        elif i is 'x_pi_half':
+        elif i == 'X/2':
             do_x_pi_half(element, pulse_dict, channels=channels)
-        elif i is 'y_pi':
+        elif i == '-X/2':
+            do_x_pi_half(element, pulse_dict, channels=channels,
+                         positive=False)
+        elif i == 'Y':
             do_y_pi(element, pulse_dict, channels=channels)
-        elif i is 'y_pi_half':
+        elif i == 'Y/2':
             do_y_pi_half(element, pulse_dict, channels=channels)
-        elif i is 'z_pi':
+        elif i == '-Y/2':
+            do_y_pi_half(element, pulse_dict, channels=channels,
+                         positive=False)
+        elif i == 'Z':
             do_z_pi(element, pulse_dict, channels=channels)
-        elif i is 'z_pi_half':
+        elif i == 'Z/2':
             do_z_pi_half(element, pulse_dict, channels=channels)
         if spacing is not None:
             wait(element, pulse_dict, spacing, channels=channels)
+        elif i == '-Z/2':
+            do_z_pi_half(element, pulse_dict, channels=channels,
+                         positive=False)
 
 
 ###########################################################
 # Sequence building function (with gates)
 ###########################################################
+
+def make_element_from_gate_list(
+        gate_list, SSBfreq=None, drag=False, gaussian=True,
+        channels=[1, 2, 3, 4], spacing=None, calib_dict=None,
+        pulse_dict=None):
+    calib_dict = calib_dict or get_calibration_dict()
+    qubit = calib_dict['current_qubit']
+    pulse_dict = pulse_dict or make_pulse_dict(
+        SSBfreq=SSBfreq, drag=drag, gaussian=gaussian)
+    element = Element(sample_rate=calib_dict['sample_rate'][qubit])
+    i_wf = Waveform(channel=channels[0])
+    q_wf = Waveform(channel=channels[1])
+    z_wf = Waveform(channel=channels[2])
+    measure_wf = Waveform(channel=channels[3])
+    element.add_waveform(i_wf)
+    element.add_waveform(q_wf)
+    element.add_waveform(z_wf)
+    element.add_waveform(measure_wf)
+    execute_gates(element, pulse_dict, gate_list,
+                  spacing=spacing)
+    wait(element, pulse_dict, calib_dict['pulse_readout_delay'][qubit],
+         channels=channels)
+    measure(element, pulse_dict, channels=channels)
+    time_after_readout = (calib_dict['cycle_time'][qubit] -
+                          calib_dict['pulse_end'][qubit] -
+                          calib_dict['pulse_readout_delay'][qubit] -
+                          calib_dict['readout_time'][qubit])
+    wait(element, pulse_dict, time_after_readout, channels=channels)
+    prepend_compensating_wait_to_element(element, pulse_dict,
+                                         calib_dict['cycle_time'][qubit])
+    return element
 
 
 def make_sequence_from_gate_lists(
@@ -605,26 +756,13 @@ def make_sequence_from_gate_lists(
                    variable_label=variable_label)
 
     for i, gate_list in enumerate(gate_list):
-        i_wf = Waveform(channel=channels[0])
-        q_wf = Waveform(channel=channels[1])
-        z_wf = Waveform(channel=channels[2])
-        measure_wf = Waveform(channel=channels[3])
-        element = Element()
-        element.add_waveform(i_wf)
-        element.add_waveform(q_wf)
-        element.add_waveform(z_wf)
-        element.add_waveform(measure_wf)
-        element.sample_rate = calib_dict['sample_rate'][qubit]
-        execute_gates(element, pulse_dict, gate_list,
-                      spacing=spacing)
-        wait(element, pulse_dict, calib_dict['pulse_readout_delay'][qubit],
-             channels=channels)
-        measure(element, pulse_dict, channels=channels)
-        prepend_compensating_wait_to_element(element, pulse_dict,
-                                             calib_dict['cycle_time'][qubit])
+        element = make_element_from_gate_list(
+            gate_list, SSBfreq=SSBfreq, drag=drag, gaussian=gaussian,
+            channels=channels, spacing=spacing, pulse_dict=pulse_dict,
+            calib_dict=calib_dict)
         if i == 0:
             marker_points = int(calib_dict['marker_time'][qubit] *
                                 calib_dict['sample_rate'][qubit])
-            measure_wf.add_marker(2, 0, marker_points)
+            element[channels[3]].add_marker(2, 0, marker_points)
         seq.add_element(element)
     return seq

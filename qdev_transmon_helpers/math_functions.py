@@ -140,7 +140,7 @@ def smooth_data_butter(data, fs, cutoff, order):
     return signal.filtfilt(b, a, data)
 
 
-def gaussian_array(sigma, sigma_cutoff, amp, SR):
+def gaussian_array(sigma, sigma_cutoff, amp, SR, positive=True):
     """
     Function which makes a gaussian of length (2*sigma_cutoff)
 
@@ -152,7 +152,8 @@ def gaussian_array(sigma, sigma_cutoff, amp, SR):
     """
     t = np.linspace(-1 * sigma_cutoff * sigma, sigma_cutoff * sigma,
                     num=int(SR * 2 * sigma_cutoff * sigma))
-    return amp * np.exp(-(t / (2 * sigma))**2)
+    prefactor = amp if positive else -1 * amp
+    return prefactor * np.exp(-(t / (2 * sigma))**2)
 
 
 def cos_gaussian_array(sigma, sigma_cutoff, SSBfreq, amp, SR, positive=True):
@@ -205,11 +206,12 @@ def flat_array(amp, dur, SR):
     return amp * np.ones(points)
 
 
-def gaussian_derivative_array(sigma, sigma_cutoff, amp, SR):
+def gaussian_derivative_array(sigma, sigma_cutoff, amp, SR, positive=True):
     points = int(SR * 2 * sigma_cutoff * sigma)
     t = np.linspace(-1 * sigma_cutoff * sigma, sigma_cutoff * sigma,
                     num=points)
-    return -amp * t / sigma * np.exp(-(t / (2 * sigma))**2)
+    prefactor = -amp if positive else amp
+    return prefactor * t / sigma * np.exp(-(t / (2 * sigma))**2)
 
 
 def cos_array(freq, amp, dur, SR, positive=True):
