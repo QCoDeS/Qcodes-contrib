@@ -41,7 +41,7 @@ def plot_data(data, key=None, matplot=False):
                            'names: {}'.format(key,
                                               list(data.arrays.keys())))
         if matplot:
-            pl = qc.MatPlot(getattr(data, value))
+            pl = qc.MatPlot(getattr(data, key_array_name))
         else:
             pl = qc.QtPlot(getattr(data, key_array_name), figsize=(700, 500))
             pl.subplots[0].setTitle(title)

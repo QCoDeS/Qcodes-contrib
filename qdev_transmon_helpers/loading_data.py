@@ -7,7 +7,7 @@ from dateutil import parser
 from . import plot_data, get_sample_name, get_metadata_list
 
 
-def load(counter, plot=True, metadata=True, matplot=False):
+def load(counter, plot=True, metadata=True, matplot=False, key=None):
     """
     Function like shownum which loads dataset, (optionally) plots it in
     QtPlot  (or matplot) from default location and (optionally) prints
@@ -33,7 +33,7 @@ def load(counter, plot=True, metadata=True, matplot=False):
         get_metadata(data, display=True)
         get_data_duration(data)
     if plot:
-        plots = plot_data(data, matplot=matplot)
+        plots = plot_data(data, matplot=matplot, key=key)
         return data, plots
     else:
         return data

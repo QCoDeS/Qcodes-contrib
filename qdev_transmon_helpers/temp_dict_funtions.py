@@ -225,8 +225,8 @@ def get_metadata_list():
         metadata_list = pickle.load(open(path + file_name, "rb"))
     except FileNotFoundError:
         print('metadata list not found, making one')
-        pickle.dump({}, open(path + file_name, 'wb'))
-        metadata_list = {}
+        metadata_list = []
+        pickle.dump(metadata_list, open(path + file_name, 'wb'))
     return metadata_list
 
 
