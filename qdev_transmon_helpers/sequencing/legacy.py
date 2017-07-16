@@ -1,4 +1,5 @@
-from . import get_calibration_dict, gaussian, cos_gaussian, sin_gaussian
+from . import get_calibration_dict, gaussian_array, cos_gaussian_array, \
+    sin_gaussian_array
 from . import Waveform, Element, Sequence
 import numpy as np
 
@@ -219,8 +220,8 @@ def make_rabi_gaussian_sequence_points(sigma_cuttoff, pi_amp=1, start=0,
     readout_template.add_marker(1, readout_marker_start_points, marker_points)
 
     for i, pi_duration in enumerate(rabi_sequence.variable_array):
-        pi_pulse = gaussian(pi_duration, sigma_cuttoff, pi_amp,
-                            p_dict['sample_rate'])
+        pi_pulse = gaussian_array(pi_duration, sigma_cuttoff, pi_amp,
+                                  p_dict['sample_rate'])
         element = Element()
         qubit_waveform = Waveform(length=total_points, channel=channels[0])
         readout_waveform = readout_template.copy()
@@ -277,11 +278,11 @@ def make_rabi_gaussianSSB_sequence_points(sigma_cuttoff, pi_amp=1, start=0,
     readout_template.add_marker(1, readout_marker_start_points, marker_points)
 
     for i, pi_duration in enumerate(rabi_sequence.variable_array):
-        pi_pulseI = cos_gaussian(pi_duration, sigma_cuttoff,
-                                 SSBfreq, pi_amp, p_dict['sample_rate'])
-        pi_pulseQ = sin_gaussian(pi_duration, sigma_cuttoff,
-                                 SSBfreq, pi_amp, p_dict['sample_rate'],
-                                 positive=False)
+        pi_pulseI = cos_gaussian_array(pi_duration, sigma_cuttoff,
+                                       SSBfreq, pi_amp, p_dict['sample_rate'])
+        pi_pulseQ = sin_gaussian_array(pi_duration, sigma_cuttoff,
+                                       SSBfreq, pi_amp, p_dict['sample_rate'],
+                                       positive=False)
         element = Element()
         qubit_waveformI = Waveform(length=total_points, channel=channels[0])
         qubit_waveformQ = Waveform(length=total_points, channel=channels[1])
@@ -401,8 +402,8 @@ def make_t1_gaussian_seq_points(pi_duration, sigma_cuttoff, pi_amp=1, start=0,
     pulse_mod_points = int((sigma_cuttoff * 4 + stop) / resolution)
 
     for i, delay_points in enumerate(delay_array_points):
-        pi_pulse = gaussian(pi_duration, sigma_cuttoff, pi_amp,
-                            p_dict['sample_rate'])
+        pi_pulse = gaussian_array(pi_duration, sigma_cuttoff, pi_amp,
+                                  p_dict['sample_rate'])
         element = Element()
         qubit_waveform = Waveform(length=total_points, channel=channels[0])
         readout_waveform = readout_template.copy()
@@ -523,8 +524,8 @@ def make_ramsey_gaussian_sequence(pi_duration, sigma_cuttoff,
     delay_array_points = np.round(
         ramsey_sequence.variable_array / resolution).astype(np.int)
 
-    pi_half_pulse = gaussian(pi_duration, sigma_cuttoff, pi_half_amp,
-                             p_dict['sample_rate'])
+    pi_half_pulse = gaussian_array(pi_duration, sigma_cuttoff, pi_half_amp,
+                                   p_dict['sample_rate'])
 
     pulse_mod_points = int((stop + 4 * pi_duration * sigma_cuttoff) /
                            resolution)
@@ -576,10 +577,10 @@ def make_allxy_seq(pi_duration, sigma_cuttoff, channels=[1, 2, 4],
     marker_points = round(p_dict['marker_time'] / resolution)
     total_points = round(p_dict['cycle_duration'] / resolution)
 
-    pi_pulse = gaussian(pi_duration, sigma_cuttoff, pi_amp,
-                        p_dict['sample_rate'])
-    pi_half_pulse = gaussian(pi_duration, sigma_cuttoff, pi_half_amp,
-                             p_dict['sample_rate'])
+    pi_pulse = gaussian_array(pi_duration, sigma_cuttoff, pi_amp,
+                              p_dict['sample_rate'])
+    pi_half_pulse = gaussian_array(pi_duration, sigma_cuttoff, pi_half_amp,
+                                   p_dict['sample_rate'])
 
     readout_waveform = Waveform(length=total_points, channel=channels[2])
     readout_waveform.wave[
@@ -919,28 +920,28 @@ def make_allxySSB_seq(pi_duration, pi_amp, SSBfreq, sigma_cuttoff,
     marker_points = round(p_dict['marker_time'] / resolution)
     total_points = round(p_dict['cycle_duration'] / resolution)
 
-    pi_pulseI_x = cos_gaussian(pi_duration, sigma_cuttoff, SSBfreq,
-                               pi_amp, p_dict['sample_rate'])
-    pi_pulseQ_x = sin_gaussian(pi_duration, sigma_cuttoff, SSBfreq,
-                               pi_amp, p_dict['sample_rate'],
-                               positive=False)
+    pi_pulseI_x = cos_gaussian_array(pi_duration, sigma_cuttoff, SSBfreq,
+                                     pi_amp, p_dict['sample_rate'])
+    pi_pulseQ_x = sin_gaussian_array(pi_duration, sigma_cuttoff, SSBfreq,
+                                     pi_amp, p_dict['sample_rate'],
+                                     positive=False)
 
-    pi_half_pulseI_x = cos_gaussian(pi_duration, sigma_cuttoff, SSBfreq,
-                                    pi_half_amp, p_dict['sample_rate'])
-    pi_half_pulseQ_x = sin_gaussian(pi_duration, sigma_cuttoff, SSBfreq,
-                                    pi_half_amp, p_dict['sample_rate'],
-                                    positive=False)
+    pi_half_pulseI_x = cos_gaussian_array(pi_duration, sigma_cuttoff, SSBfreq,
+                                          pi_half_amp, p_dict['sample_rate'])
+    pi_half_pulseQ_x = sin_gaussian_array(pi_duration, sigma_cuttoff, SSBfreq,
+                                          pi_half_amp, p_dict['sample_rate'],
+                                          positive=False)
 
-    pi_pulseI_y = sin_gaussian(p_dict['sample_rate'], pi_duration,
-                               sigma_cuttoff, pi_amp, SSBfreq)
-    pi_pulseQ_y = cos_gaussian(p_dict['sample_rate'], pi_duration,
-                               sigma_cuttoff, pi_amp, SSBfreq)
-    pi_half_pulseI_y = sin_gaussian(p_dict['sample_rate'],
-                                    pi_duration, sigma_cuttoff,
-                                    pi_half_amp, SSBfreq)
-    pi_half_pulseQ_y = cos_gaussian(p_dict['sample_rate'],
-                                    pi_duration, sigma_cuttoff,
-                                    pi_half_amp, SSBfreq)
+    pi_pulseI_y = sin_gaussian_array(p_dict['sample_rate'], pi_duration,
+                                     sigma_cuttoff, pi_amp, SSBfreq)
+    pi_pulseQ_y = cos_gaussian_array(p_dict['sample_rate'], pi_duration,
+                                     sigma_cuttoff, pi_amp, SSBfreq)
+    pi_half_pulseI_y = sin_gaussian_array(p_dict['sample_rate'],
+                                          pi_duration, sigma_cuttoff,
+                                          pi_half_amp, SSBfreq)
+    pi_half_pulseQ_y = cos_gaussian_array(p_dict['sample_rate'],
+                                          pi_duration, sigma_cuttoff,
+                                          pi_half_amp, SSBfreq)
 
     readout_waveform = Waveform(length=total_points, channel=channels[2])
     readout_waveform.wave[
