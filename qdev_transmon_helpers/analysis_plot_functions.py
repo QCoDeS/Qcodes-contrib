@@ -4,6 +4,7 @@ import qcodes as qc
 
 from . import get_title, get_pulse_location, get_analysis_location
 
+# TODO extend 'plot_with_markers' to 2d
 
 def plot_cf_data(data_list, data_num=None,
                  subplot=None, xdata=None,
@@ -145,7 +146,8 @@ def plot_subset(dataset, key, x_start=None, x_stop=None,
     return pl
 
 
-def plot_with_markers(dataset, indices, subplot=None, key="linear_magnitude"):
+def plot_with_markers(dataset, indices, subplot=None, x_key="set", y_key="mag",
+                      title=None):
     """
     Function which does simple plot of data with points at specified indices
     added
@@ -155,8 +157,12 @@ def plot_with_markers(dataset, indices, subplot=None, key="linear_magnitude"):
         indices (array): array of data indices of resonances
         subplot (default None) subplot to add markers to, default is to create
             new one
-        key (default "linear_magnitude"): key to search dataset for array to
+        x_key (default "mag"): key to search dataset for y_array to
             plot
+        y_key (default "mag"): key to search dataset for y_array to
+            plot
+        title (default None): addition to sataset num to add as title
+
 
     Returns:
         subplot (matplotlib AxesSubplot): plot of results
@@ -169,10 +175,14 @@ def plot_with_markers(dataset, indices, subplot=None, key="linear_magnitude"):
         except AttributeError as e:
             print('dataset has no data_num set: {}'.format(e))
 
-    setpoints = next(getattr(dataset, k)
-                     for k in dataset.arrays.keys() if "set" in k)
-    magnitude = next(getattr(dataset, k)
-                     for k in dataset.arrays.keys() if key in k)
+    try:
+        setpoints = next(getattr(dataset, k)
+                         for k in dataset.arrays.keys() if x_key in k)
+        magnitude = next(getattr(dataset, k)
+                         for k in dataset.arrays.keys() if y_key in k)
+    except Exception:
+        raise Exception('could not get {} and {} arrays from dataset, check dataset '
+                       'has these keys array names'.format(x_key, y_key))
     subplot.plot(setpoints, magnitude, 'b')
     subplot.plot(setpoints[indices], magnitude[indices], 'gs')
     subplot.set_xlabel('frequency(Hz)')
@@ -184,7 +194,8 @@ def plot_with_markers(dataset, indices, subplot=None, key="linear_magnitude"):
         num = dataset.location_provider.counter
         print('warning: check title, could be wrong datanum')
 
-    subplot.figure.suptitle('{}'.format(num), fontsize=12)
+    pl_title = str(num) +  (' ' + title if title is not None else '')
+    subplot.figure.suptitle(pl_title, fontsize=12)
     return subplot
 
 

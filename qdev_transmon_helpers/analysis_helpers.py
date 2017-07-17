@@ -11,15 +11,14 @@ from . import exp_decay, exp_decay_sin, get_calibration_dict, get_title, \
 #                            qubit_from_ssb_volt_sweep
 # TODO: write fit for resonance and use this to find resonance
 #    not argmin
-# TODO: remove hard coding of linear_magnitude
 
 ###########################
 # VNA
 ###########################
 
 
-def find_peaks(dataset, fs, cutoff=0.2e-6, order=5,
-               subplot=None, widths=np.linspace(1, 150)):
+def find_peaks(dataset, fs, x_key="set", y_key="mag", cutoff=5e-6, order=2,
+               subplot=None, widths=np.linspace(50, 150)):
     """
     Function which given a 1d array smoothes the data, finds resonances
     and plots results
@@ -27,24 +26,33 @@ def find_peaks(dataset, fs, cutoff=0.2e-6, order=5,
     Args:
         dataset (qcodes DataSet)
         fs (float): frequency of sampling, passed to smoothed_data_butter
+        x_key (str): string to look for data array on x axis
+                        default "set"
+        y_key (str): string to look for data array on y axis
+                        default "mag"
         cutoff (float): used for smoothing passed to smooth_data_butter
-                    default 30e9
+                    default 5e-6
         order (int): used for smoothing passed to smooth_data_butter, default 5
         subplot (matplotlib AxesSubplot): subplot which this data should be
                     plotted on, default None will create new one
         widths (array): array peak widths to search for, passed to
-                    signal.find_peaks_cwt, default np.linspace(1, 150)
+                    signal.find_peaks_cwt, default np.linspace(50, 150)
 
     Returns:
         peakind (array): indices of resonances found
         frequencies (array): frequencies of resonances found
         subplot (matplotlib AxesSubplot): plot of results
     """
-    setpoints = next(getattr(dataset, key)
-                     for key in dataset.arrays.keys() if "set" in key)
+    try:
+        setpoints = next(getattr(dataset, key)
+                         for key in dataset.arrays.keys() if x_key in key)
+        unsmoothed_data = next(getattr(dataset, key)
+                         for key in dataset.arrays.keys() if y_key in key)
+    except Exception:
+        raise Exception('could not get {} and {} arrays from dataset, check dataset '
+                       'has these keys array names'.format(x_key, y_key))
 
     # smooth data
-    unsmoothed_data = dataset.vna_linear_magnitude
     smoothed_data = smooth_data_butter(
         unsmoothed_data, fs, cutoff=cutoff, order=order)
 
@@ -72,14 +80,19 @@ def find_peaks(dataset, fs, cutoff=0.2e-6, order=5,
     return peakind, setpoints[peakind], subplot
 
 
-def get_resonator_push(dataset):
+def get_resonator_push(dataset, x_key="freq", y_key="pow", z_key="mag"):
     """
     Function which gets the change in resonance frequency from a power
     sweep dataset.
 
     Args:
         dataset (qcodes DataSet)
-
+        x_key (str): string to look for data array on x axis
+                        default "set"
+        y_key (str): string to look for data array on y axis
+                        default "pow"
+        z_key (str): string to look for data arrays on z axis
+                        default "mag"
     Returns:
         low_res (float): calculated resonance freq at low power
         high_res (float): calculated resonance freq at low power
@@ -87,9 +100,16 @@ def get_resonator_push(dataset):
         axarr (numpy.ndarray): subplot array
     """
     # get data for high and low power from dataset
-    mag_arrays = dataset.vna_linear_magnitude
-    freq_array = dataset.frequency_set[0]
-    pow_array = dataset.vna_power_set
+    try:
+        freq_array = next(getattr(dataset, key)
+                         for key in dataset.arrays.keys() if x_key in key)[0]
+        pow_array = next(getattr(dataset, key)
+                         for key in dataset.arrays.keys() if y_key in key)
+        mag_arrays = next(getattr(dataset, key)
+                         for key in dataset.arrays.keys() if z_key in key)
+    except Exception:
+        raise Exception('could not get {} and {} arrays from dataset, check dataset '
+                       'has these keys array names'.format(x_key, y_key))
     mag_high = mag_arrays[0]
     mag_low = mag_arrays[-1]
     smoothed_mag_low = smooth_data_SG(mag_low, 15, 6)
@@ -112,7 +132,7 @@ def get_resonator_push(dataset):
     fig, axarr = plt.subplots(2)
 
     # subplot 1: high and low power cuts, smoothed and unsmoothed
-    plot_cf_data(smoothed_mag_high, mag_high, smoothed_mag_low, mag_low,
+    plot_cf_data([smoothed_mag_high, mag_high, smoothed_mag_low, mag_low],
                  subplot=axarr[0], xdata=freq_array,
                  legend_labels=['pow={}'.format(high_pow),
                                 'pow={},smoothed'.format(high_pow),
@@ -141,8 +161,7 @@ def get_resonator_push(dataset):
         fig.data_num = dataset.location_provider.counter
         print('dataset has no data_num set: {}'.format(e))
 
-    return [low_res, high_res, dif], fig
-
+    return low_res, fig
 
 ###########################
 # Alazar

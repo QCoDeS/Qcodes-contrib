@@ -4,7 +4,7 @@ import datetime
 
 from . import do_cavity_freq_sweep, find_extreme, set_calibration_val, \
     set_single_demod_freq, get_calibration_val, set_up_sequence, \
-    sweep1d, measure, measure_ssb, sweep_2d_ssb, check_seq_uploaded
+    sweep1d, measure, measure_ssb, sweep_2d_ssb, check_seq_uploaded, get_demod_freq
 
 from .sequencing import make_spectroscopy_SSB_sequence, make_rabi_sequence, \
     make_t1_sequence, make_ramsey_sequence
@@ -55,22 +55,23 @@ def calibrate_cavity(cavity, localos, acq_ctrl, alazar, centre_freq=None,
     alazar.seq_mode('off')
     cavity.status('on')
     localos.status('on')
+    good_demod_freq = demod_freq or get_demod_freq(cavity, localos, acq_ctrl)
     data, plot = do_cavity_freq_sweep(cavity, localos, centre_freq, acq_ctrl,
                                       cavity_pm=3e6, freq_step=0.1e6,
-                                      demod_freq=demod_freq,
+                                      demod_freq=good_demod_freq,
                                       live_plot=True, key="mag", save=True)
     cavity_res, mag = find_extreme(
         data, x_key="frequency_set", y_key="mag", extr="min")
     good_cavity_freq = cavity_res + detuning
     if calib_update:
         set_calibration_val('cavity_freq', good_cavity_freq)
-        set_calibration_val('cavity_pow', cavity_pow)
-        set_calibration_val('demod_freq', demod_freq)
-        set_calibration_val('localos_pow', localos_pow)
-    set_single_demod_freq(cavity, localos, [acq_ctrl], demod_freq,
+        set_calibration_val('cavity_pow', cavity_pow or cavity.power())
+        set_calibration_val('demod_freq', good_demod_freq)
+        set_calibration_val('localos_pow', localos_pow or localos.power())
+    set_single_demod_freq(cavity, localos, [acq_ctrl], good_demod_freq,
                           cav_freq=good_cavity_freq)
     alazar.seq_mode(alazar_mode)
-    print('cavity_freq set to {}, mag = '.format(good_cavity_freq, mag))
+    print('cavity_freq set to {}, mag = {}'.format(good_cavity_freq, mag))
 
 
 def find_qubit(awg, alazar, acq_ctrl, qubit, start_freq=4e9, stop_freq=6e9,

@@ -23,11 +23,12 @@ def set_up_sequence(awg, alazar, acq_controllers, sequence, seq_mode='on'):
         num = get_latest_counter(pulse_location) + 1
     except (FileNotFoundError, OSError):
         num = 0
-    name = '{0:03d}_{name}.awg'.format(num, name=sequence.name)
-    file_name = pulse_location + name
-    make_save_send_load_awg_file(awg, sequence, file_name)
-    save_sequence(file_name)
-    awg.current_seq(name)
+    name = '{0:03d}_{name}'.format(num, name=sequence.name)
+    awg_file_name = pulse_location + name + '.awg'
+    seq_file_name = pulse_location + name + '.p'
+    make_save_send_load_awg_file(awg, sequence, awg_file_name)
+    save_sequence(sequence, seq_file_name)
+    awg.current_seq(num)
     alazar.seq_mode(seq_mode)
     record_num = len(sequence)
     if seq_mode is 'on':

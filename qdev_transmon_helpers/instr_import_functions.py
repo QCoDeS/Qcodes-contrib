@@ -89,10 +89,12 @@ def import_alazar(name='alazar', station=None,
                   clock_source='EXTERNAL_CLOCK_10MHz_REF'):
     from qcodes.instrument_drivers.AlazarTech.ATS9360 import AlazarTech_ATS9360
     alazar = AlazarTech_ATS9360(name=name)
-    config_alazar(alazar, seq_mode=False, clock_source=clock_source)
+    config_alazar(alazar, seq_mode='off', clock_source=clock_source)
     alazar.add_parameter(name='seq_mode',
                          get_cmd=partial(get_alazar_seq_mode, alazar),
-                         set_cmd=partial(set_alazar_seq_mode, alazar))
+                         set_cmd=partial(set_alazar_seq_mode, alazar),
+                         vals=vals.Anything()
+                     )
     if station is not None:
         station.add_component(alazar)
     logging.info('imported Alazar ATS9360: \'{}\''.format(name))

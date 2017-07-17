@@ -34,11 +34,11 @@ def sweep2d_vna(v1, startf, stopf, stepf,
     Returns:
         dataset, plot
     """
-    v1.start(startf)
-    v1.stop(stopf)
+    v1.start21(startf)
+    v1.stop21(stopf)
     npts = int((stopf - startf) / stepf + 1)
-    v1.npts(npts)
-    dataset, plot = sweep1d(v1.trace, sweep_param2, start2, stop2, step2,
+    v1.npts21(npts)
+    dataset, plot = sweep1d(v1.trace21, sweep_param2, start2, stop2, step2,
                             delay=delay, key="mag", save=save)
     return dataset, plot
 

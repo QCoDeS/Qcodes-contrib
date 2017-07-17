@@ -171,6 +171,20 @@ def set_calibration_array(key, array):
     _update_calibration_dict({key: np.array(array)})
 
 
+def get_calibration_array(key):
+    """
+    Gets the relevant array of values for all qubits corresponding to the key
+
+    Args:
+        key (str): key name in calibration dictionary
+
+    Returns:
+        qubit_values
+    """
+    c_dict = get_calibration_dict()
+    return c_dict[key]
+
+
 def get_calibration_val(key, qubit_index=None):
     """
     Gets the relevant index of a value in the calibration
