@@ -68,12 +68,12 @@ def calibrate_cavity(cavity, localos, acq_ctrl, alazar, centre_freq=None,
     good_cavity_freq = cavity_res + detuning
     if calib_update:
         set_calibration_val('cavity_freq', good_cavity_freq,
-            qubit_index=qubit_index)
+                            qubit_index=qubit_index)
         set_calibration_val('cavity_pow', cavity_pow or cavity.power(),
             qubit_index=qubit_index)
-        set_calibration_val('demod_freq', good_demod_freq
+        set_calibration_val('demod_freq', good_demod_freq,
             qubit_index=qubit_index)
-        set_calibration_val('localos_pow', localos_pow or localos.power()
+        set_calibration_val('localos_pow', localos_pow or localos.power(),
             qubit_index=qubit_index)
     set_single_demod_freq(cavity, localos, [acq_ctrl], good_demod_freq,
                           cav_freq=good_cavity_freq)

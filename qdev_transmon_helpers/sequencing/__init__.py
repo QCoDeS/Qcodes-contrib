@@ -7,6 +7,7 @@ from pulse_building import Segment, Waveform, Element, Sequence
 from .. import get_calibration_dict, get_allowed_keys
 
 from ..math_functions import *
+from .waveform_makers import *
 from .helpers import *
 from .basic import *
 from .allxy import *

@@ -123,7 +123,7 @@ def get_demod_freq(cavity, localos, acq_ctrl):
 
 
 def set_single_demod_freq(cavity, localos, acq_ctrls, demod_freq,
-                          cav_freq=None):
+                          cavity_freq=None):
     """
     Optionally sets cavity frequency. Then sets detuning of localos and checks
     that acq controllers demodulate at this detuning
@@ -140,16 +140,37 @@ def set_single_demod_freq(cavity, localos, acq_ctrls, demod_freq,
     if cav_freq is not None:
         cavity.frequency(cav_freq)
     else:
-        cav_freq = cavity.frequency()
-    localos.frequency(cav_freq + demod_freq)
+        cavity_freq = cavity.frequency()
+    localos.frequency(cavity_freq + demod_freq)
     for ctrl in acq_ctrls:
         remove_demod_freqs(ctrl)
         ctrl.demod_freqs.add_demodulator(demod_freq)
 
 
-def set_demod_freqs(cavity, localos, aqc_ctrls, demod_freqs,
-                    cav_freqs=None):
-    raise NotImplementedError
+def set_demod_freqs(cavity_list, localos, aqc_ctrls,
+                    localos_freq=None, cavity_freqs=None):
+    localos.status('on')
+    if localos_freq is not None:
+            localos.frequency(localos_freq)
+    else:
+        localos_freq = localos.frequency()
+
+    if cavity_freqs is not None:
+        if len(cavity_freqs) != len(cavity_list):
+            raise Exception('cavity freqd list length not equal to cavity list length')
+        demod_freqs = [localos_freq - c for c in cavity_freqs]
+    else
+        demod_freqs = [localos_freq - c.frequency() for c in cavity_list]
+        cavity_freqs = [None] * len(cavity_list)
+    for ctrl in acq_ctrls:
+         remove_demod_freqs(ctrl)
+
+    for i, cav in enumerate(cavity_list):
+        cav.status('on')
+        if cavity_freqs[i] is not None:
+            cav.frequency(cavity_freqs[i])
+        for ctrl in acq_ctrls:
+            ctrl.demod_freqs.add_demodulator(demod_freqs[i])
 
 
 def remove_demod_freqs(acq_ctrl):
