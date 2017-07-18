@@ -1,17 +1,15 @@
 import numpy as np
 from functools import partial
 import logging
-from qcodes.utils import validators as vals
+from qcodes import validators as vals
 from qcodes.instrument.parameter import ManualParameter
 from . import get_qubit_count, config_alazar, get_alazar_seq_mode, \
     set_alazar_seq_mode
-
-alazar_acq_types = ['samp', 'ave', 'rec']
+from . import config as cfg
 
 # TODO: AWG external ref source
 # TODO: alazar seq mode param default val
 # TODO: new import_decadac with new driver + channels
-# TODO: new import vna with new driver and channels
 
 
 def import_decadac(port=5, station=None, chan_count=None, all_chans_0=False):
@@ -106,18 +104,18 @@ def import_alazar(name='alazar', station=None,
 def import_acq_controller(alazar, name=None, ctrl_type='ave', station=None):
     from qcodes.instrument_drivers.AlazarTech.acq_controllers import ATS9360Controller
     ctrl_name = name or (ctrl_type + '_ctrl')
-    if ctrl_type is alazar_acq_types[0]:
+    if ctrl_type is cfg.alazar_acq_types[0]:
         ctrl = ATS9360Controller(name=ctrl_name, alazar_name=alazar.name,
                                  integrate_samples=False, average_records=True)
-    elif ctrl_type is alazar_acq_types[1]:
+    elif ctrl_type is cfg.alazar_acq_types[1]:
         ctrl = ATS9360Controller(name=ctrl_name, alazar_name=alazar.name,
                                  integrate_samples=True, average_records=True)
-    elif ctrl_type is alazar_acq_types[2]:
+    elif ctrl_type is cfg.alazar_acq_types[2]:
         ctrl = ATS9360Controller(name=ctrl_name, alazar_name=alazar.name,
                                  integrate_samples=True, average_records=False)
     else:
         raise Exception('acquisition controller type must be in {}, received: '
-                        '{}'.format(alazar_acq_types, ctrl_type))
+                        '{}'.format(cfg.alazar_acq_types, ctrl_type))
     if station is not None:
         station.add_component(ctrl)
     logging.info('imported acquisition controller: \'{}\''.format(ctrl_name))
@@ -157,6 +155,7 @@ def import_awg(visa_address, name='awg', timeout=40, station=None):
     awg.ch2_filter(100000000.0)
     awg.ch3_filter(100000000.0)
     awg.ch4_filter(100000000.0)
+    awg.ref_source('EXT')
     awg.clear_message_queue()
     if station is not None:
         station.add_component(awg)

@@ -50,6 +50,5 @@ def set_up_sequence(awg, alazar, acq_controllers, sequence, seq_mode='on'):
                     setpoints_stop=stop)
             except NotImplementedError:
                 pass
-    alazar.seq_mode(seq_mode)
     awg.all_channels_on()
     awg.run()

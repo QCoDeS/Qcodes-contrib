@@ -6,30 +6,11 @@ import pickle
 import copy
 import numpy as np
 from . import get_qubit_count
-
+from . import config as cfg
 
 ################################
 # Calibration Dictionary
 ################################
-
-
-vna_dict_keys = ['expected_qubit_freq', 'g_value', 'bare_res_freq',
-                 'pushed_res_freq', 'gate_volt']
-
-alazar_dict_keys = ['int_time', 'int_delay', 'cavity_freq',
-                    'cavity_pow', 'localos_pow', 'demod_freq',
-                    'qubit_freq', 'pi_pulse_pow', 'spec_pow']
-
-default_pulse_dict = {'cycle_time': 20e-6, 'sample_rate': 1e9,
-                      'pulse_end': 10e-6, 'pulse_readout_delay': 30e-9,
-                      'readout_time': 4e-6, 'readout_amp': 1,
-                      'marker_time': 500e-9,
-                      'marker_readout_delay': 0, 'qubit_spec_time': 1e-6,
-                      'pulse_mod_time': 1.5e-6, 'pi_pulse_amp': 1,
-                      'pi_half_pulse_amp': 0.5, 'pi_pulse_sigma': None,
-                      'pi_pulse_dur': None, 'sigma_cutoff': 4,
-                      'z_pulse_amp': None, 'z_pulse_dur': None,
-                      'z_half_pulse_amp': None, 'drag_coef': 0.5}
 
 
 def dd_f():
@@ -86,8 +67,9 @@ def _update_calibration_dict(update_dict):
 
 def set_current_qubit(index):
     """
-    Sets the value of the 'current_qubit' in the calibration dictionary. This
-    can then be used to access index of this qubit when getting or setting
+    Sets the value of the 'current_qubit' in the calibration dictionary and
+    as a global variable (so that the spyder variables manager doesn't look confusing.
+    This can then be used to access index of this qubit when getting or setting
     other values in the calibration dictionary.
 
     Args:
@@ -98,33 +80,40 @@ def set_current_qubit(index):
         raise ValueError('Expects qubit index less than qubit count: {}. '
                          'Received {}'.format(qubit_count, index))
     _update_calibration_dict({'current_qubit': index})
+    global current_qubit
+    current_qubit = index
 
 
 def get_current_qubit():
     """
     Gets the value of the current qubit as set in the calibration dictionary
+    and sets the global variable to match
 
     Returns:
         qubit index
     """
     c_dict = get_calibration_dict()
-    return c_dict['current_qubit']
+    index = c_dict['current_qubit']
+    global current_qubit
+    current_qubit = index
+    return index
 
 
 def get_allowed_keys(vna=True, alazar=True, pulse=True):
     """
-    Gets the keys allowed in the calibration dictionary. These are hard coded.
+    Gets the keys allowed in the calibration dictionary. These are found
+    in config.py.
 
     Returns:
         set of keys
     """
     keys_list = []
     if vna:
-        keys_list.extend(vna_dict_keys)
+        keys_list.extend(cfg.vna_dict_keys)
     if alazar:
-        keys_list.extend(alazar_dict_keys)
+        keys_list.extend(cfg.alazar_dict_keys)
     if pulse:
-        keys_list.extend(default_pulse_dict.keys())
+        keys_list.extend(cfg.default_pulse_dict.keys())
     return keys_list
 
 
@@ -285,33 +274,20 @@ def _set_metadata_list(updated_list):
     pickle.dump(updated_list, open(path + file_name, 'wb'))
 
 
-def remove_from_metadata_list(*args):
+def remove_from_metadata_list(instr):
     """
     Function which removes the instr_param_tuples from the matadata_list.p
-    if present
+    if they belong to this instrument
 
     Args:
-        qcodes parameters
+        qcodes instrument or instrument name
     """
     metadata_list = get_metadata_list()
-    for param in args:
-        inst_param_tuple = (param._instrument.name, param.name)
-    if inst_param_tuple in metadata_list:
-        metadata_list.remove(inst_param_tuple)
-    _set_metadata_list(metadata_list)
-
-
-def remove_from_metadata_list_manual(instr_name, param_name):
-    """
-    Function which removes the instr_param_tuple from the matadata_list.p
-    if present
-
-    Args:
-        intr_name (str): name of instrument which param belongs to
-        param_name (str): name of param
-    """
-    metadata_list = get_metadata_list()
-    inst_param_tuple = (instr_name, param_name)
-    if inst_param_tuple in metadata_list:
-        metadata_list.remove(inst_param_tuple)
+    if type(instr) is string:
+        name = instr
+    else:
+        name = instr.name
+    for inst_param_tuple in metadata_list:
+        if inst_param_tuple[0] == name:
+            metadata_list.remove(inst_param_tuple)
     _set_metadata_list(metadata_list)

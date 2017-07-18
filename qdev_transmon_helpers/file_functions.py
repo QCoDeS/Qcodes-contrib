@@ -11,7 +11,7 @@ import warnings
 EXPERIMENT_VARS = {'analysis_loc': False,
                    'data_loc_fmt': False,
                    'python_log_loc': False,
-                   'jupyter_log_loc': False,
+                   'ipython_log_loc': False,
                    'temp_dict_loc': False,
                    'pulse_loc': False}
 
@@ -21,8 +21,7 @@ EXPERIMENT_VARS = {'analysis_loc': False,
 
 def in_ipynb():
     """
-    Tests whether code is being run in an ipython
-    (or jupyter) notebook
+    Tests whether code is being run in an ipython session
 
     Returns:
         bool
@@ -36,11 +35,14 @@ def in_ipynb():
 
 def set_qubit_count(count):
     """
-    Sets qubit_count in EXPERIMENT_VARS dictionary
+    Sets qubit_count in EXPERIMENT_VARS dictionary and the global variable
+    (to avoid confusion when using spyder)
 
     Args:
         count (int)
     """
+    global qubit_count
+    qubit_count = count
     EXPERIMENT_VARS['qubit_count'] = count
 
 
@@ -49,19 +51,25 @@ def get_qubit_count():
     Returns:
         value of qubit_count in EXPERIMENT_VARS dictionary (int)
     """
+    global qubit_count
     try:
-        return EXPERIMENT_VARS['qubit_count']
+        count = EXPERIMENT_VARS['qubit_count']
+        qubit_count = count
+        return count
     except KeyError:
         raise KeyError('qubit_count not set, please call set_qubit_count')
 
 
 def set_sample_name(name):
     """
-    Sets sample_name in EXPERIMENT_VARS dictionary
+    Sets sample_name in EXPERIMENT_VARS dictionary and the global variable
+    (to avoid confusion when using spyder)
 
     Args:
         sample_name
     """
+    global sample_name
+    sample_name = name
     EXPERIMENT_VARS['sample_name'] = name
 
 
@@ -70,8 +78,11 @@ def get_sample_name():
     Returns:
         value of sample_name in EXPERIMENT_VARS dictionary (str).
     """
+    global sample_name
     try:
-        return EXPERIMENT_VARS['sample_name']
+        name = EXPERIMENT_VARS['sample_name']
+        sample_name = name
+        return name
     except KeyError:
         raise KeyError('sample_name not set, please call set_sample_name')
 
@@ -230,8 +241,8 @@ def set_log_locations():
     """
     Sets location for qcodes to save log files based on
     the qcodes.config.user.log_location value. Within this folder
-    creates python_logs file and (if in notebook) creates jupyter_logs
-    file, starts jupyter log. Sets python_log_loc and jupyter_log_loc
+    creates python_logs file and (if in notebook) creates ipython_logs
+    file, starts ipython log. Sets python_log_loc and ipython_log_loc
     in EXPERIMENT_VARS dictionary to True.
     """
     warnings.simplefilter('error', UserWarning)
@@ -241,7 +252,7 @@ def set_log_locations():
         log_location = abspath(qc.config.user.log_location.format(
             sample_name=sample_name))
         python_log_location = sep.join([log_location, 'python_logs', ""])
-        jupyter_log_location = sep.join([log_location, 'jupyter_logs', ""])
+        ipython_log_location = sep.join([log_location, 'ipython_logs', ""])
     except KeyError:
         raise KeyError('log_location not set in config, see '
                        '"https://github.com/QCoDeS/Qcodes/blob/master'
@@ -263,48 +274,48 @@ def set_log_locations():
         EXPERIMENT_VARS['python_log_loc'] = True
         print('Set up python log location: {}'.format(python_log_location))
         print('-------------------------')
-    if EXPERIMENT_VARS['jupyter_log_loc']:
-        print('Jupyter log already started at {}.'.format(
-            jupyter_log_location))
+    if EXPERIMENT_VARS['ipython_log_loc']:
+        print('ipython log already started at {}.'.format(
+            ipython_log_location))
         print('-------------------------')
     else:
         if in_ipynb():
-            if not os.path.exists(jupyter_log_location):
-                os.makedirs(jupyter_log_location)
-            jupyter_logfile_name = "{}{}{}".format(
-                jupyter_log_location,
+            if not os.path.exists(ipython_log_location):
+                os.makedirs(ipython_log_location)
+            ipython_logfile_name = "{}{}{}".format(
+                ipython_log_location,
                 strftime('%Y-%m-%d_%H-%M-%S',
                          localtime()),
                 '_ipythonlogfile.txt')
             try:
                 get_ipython().magic("logstart -t {} append".format(
-                    jupyter_logfile_name))
-                EXPERIMENT_VARS['jupyter_log_loc'] = True
-                print('Set up jupyter log location: {}'.format(
-                    jupyter_log_location))
+                    ipython_logfile_name))
+                EXPERIMENT_VARS['ipython_log_loc'] = True
+                print('Set up ipython log location: {}'.format(
+                    ipython_log_location))
                 print('-------------------------')
             except Warning as w:
-                print('Could not set up jupyter log: ', w)
+                print('Could not set up ipython log: ', w)
                 print('-------------------------')
 
 
 def get_log_locations():
     """
     Returns:
-        dictionary of 'python_log' and 'jupyter_log' locations where set by
+        dictionary of 'python_log' and 'ipython_log' locations where set by
         calling get_log_locations() based on qc.config.user.log_location and
         sample_name.
     """
     if (EXPERIMENT_VARS['python_log_loc'] or
-            EXPERIMENT_VARS['jupyter_log_loc']):
+            EXPERIMENT_VARS['ipython_log_loc']):
         logs = {}
         sample_name = EXPERIMENT_VARS['sample_name']
         log_location = abspath(qc.config.user.log_location.format(
             sample_name=sample_name))
         if EXPERIMENT_VARS['python_log_loc']:
             logs['python_log'] = sep.join([log_location, 'python_logs', ""])
-        if EXPERIMENT_VARS['jupyter_log_loc']:
-            logs['jupyter_log'] = sep.join([log_location, 'jupyter_logs', ""])
+        if EXPERIMENT_VARS['ipython_log_loc']:
+            logs['ipython_log'] = sep.join([log_location, 'ipython_logs', ""])
         return logs
     else:
         raise Exception('no logs set, please run set_log_locations to start'
