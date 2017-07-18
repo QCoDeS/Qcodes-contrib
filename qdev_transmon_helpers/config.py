@@ -1,3 +1,5 @@
+import collections
+
 ################################################
 # instr import 
 ################################################
@@ -7,6 +9,11 @@ alazar_acq_types = ['samp', 'ave', 'rec']
 ################################################
 # calib dict
 ################################################
+
+def dd_f():
+    return None
+
+default_calib_dict = collections.defaultdict(dd_f)
 
 vna_dict_keys = ['expected_qubit_freq', 'g_value', 'bare_res_freq',
                  'pushed_res_freq', 'gate_volt']

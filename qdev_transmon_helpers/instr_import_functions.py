@@ -163,3 +163,4 @@ def import_awg(visa_address, name='awg', timeout=40, station=None):
     print('imported tektronix awg5014c: \'{}\''.format(name))
     print('-------------------------')
     return awg
+

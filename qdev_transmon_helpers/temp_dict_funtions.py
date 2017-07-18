@@ -1,5 +1,4 @@
 import pprint
-import collections
 from . import get_temp_dict_location
 import os
 import pickle
@@ -8,16 +7,11 @@ import numpy as np
 from . import get_qubit_count
 from . import config as cfg
 
+# TODO: docstrings
+
 ################################
 # Calibration Dictionary
 ################################
-
-
-def dd_f():
-    return None
-
-
-default_calib_dict = collections.defaultdict(dd_f)
 
 
 def get_calibration_dict():
@@ -34,9 +28,9 @@ def get_calibration_dict():
         calibration_dict = pickle.load(open(path + file_name, "rb"))
     else:
         print('calib dict not found, making one')
-        calibration_dict = default_calib_dict
-        for k in default_pulse_dict:
-            v = np.array([default_pulse_dict[k]] * get_qubit_count())
+        calibration_dict = cfg.default_calib_dict
+        for k in cfg.default_pulse_dict:
+            v = np.array([cfg.default_pulse_dict[k]] * get_qubit_count())
             calibration_dict[k] = v
         pickle.dump(calibration_dict, open(path + file_name, 'wb'))
     return calibration_dict
@@ -57,9 +51,9 @@ def _update_calibration_dict(update_dict):
         calibration_dict = pickle.load(open(path + file_name, "rb"))
     else:
         print('calib dict not found, making one')
-        calibration_dict = default_calib_dict
-        for k in default_pulse_dict:
-            v = np.array([default_pulse_dict[k]] * get_qubit_count())
+        calibration_dict = cfg.default_calib_dict
+        for k in cfg.default_pulse_dict:
+            v = np.array([cfg.default_pulse_dict[k]] * get_qubit_count())
             calibration_dict[k] = v
     calibration_dict.update(update_dict)
     pickle.dump(calibration_dict, open(path + file_name, 'wb'))
@@ -95,6 +89,7 @@ def get_current_qubit():
     c_dict = get_calibration_dict()
     index = c_dict['current_qubit']
     global current_qubit
+    print(current_qubit)
     current_qubit = index
     return index
 
@@ -211,7 +206,7 @@ def print_pulse_settings():
     """
     calib_dict = get_calibration_dict()
     pulse_dict = {}
-    for k in default_pulse_dict:
+    for k in cfg.default_pulse_dict:
         pulse_dict[k] = calib_dict[k]
     pprint.pprint(pulse_dict, width=1)
 

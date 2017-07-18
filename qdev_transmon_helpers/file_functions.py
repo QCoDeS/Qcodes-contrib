@@ -7,14 +7,7 @@ from IPython import get_ipython
 from os.path import abspath
 from os.path import sep
 import warnings
-
-EXPERIMENT_VARS = {'analysis_loc': False,
-                   'data_loc_fmt': False,
-                   'python_log_loc': False,
-                   'ipython_log_loc': False,
-                   'temp_dict_loc': False,
-                   'pulse_loc': False}
-
+from . import global_settings as exp
 
 # TODO: either get 'file format' to behave as wanted or remove freedom
 
@@ -35,56 +28,48 @@ def in_ipynb():
 
 def set_qubit_count(count):
     """
-    Sets qubit_count in EXPERIMENT_VARS dictionary and the global variable
-    (to avoid confusion when using spyder)
+    Sets global_settings qubit_count
 
     Args:
         count (int)
     """
-    global qubit_count
-    qubit_count = count
-    EXPERIMENT_VARS['qubit_count'] = count
+    exp.qubit_count = count
 
 
 def get_qubit_count():
     """
     Returns:
-        value of qubit_count in EXPERIMENT_VARS dictionary (int)
+        value of qubit_count global_settings
     """
-    global qubit_count
-    try:
-        count = EXPERIMENT_VARS['qubit_count']
-        qubit_count = count
-        return count
-    except KeyError:
+    count = exp.qubit_count
+    if count is None:
         raise KeyError('qubit_count not set, please call set_qubit_count')
+    return count
 
 
 def set_sample_name(name):
     """
-    Sets sample_name in EXPERIMENT_VARS dictionary and the global variable
-    (to avoid confusion when using spyder)
+    Sets global_settings sample_name 
 
     Args:
         sample_name
     """
-    global sample_name
-    sample_name = name
-    EXPERIMENT_VARS['sample_name'] = name
+    exp.sample_name = name
+    if any(exp.files_setup.values()):
+        logging.warn('sample name changed, if files for this sample do '
+            'not already exist set_file_locations must be called to create them')
 
 
 def get_sample_name():
     """
     Returns:
-        value of sample_name in EXPERIMENT_VARS dictionary (str).
+        value of sample_name in global_settings
     """
-    global sample_name
-    try:
-        name = EXPERIMENT_VARS['sample_name']
-        sample_name = name
-        return name
-    except KeyError:
+    name = exp.sample_name
+    if name is None:
         raise KeyError('sample_name not set, please call set_sample_name')
+    return name
+        
 
 
 def set_data_location():
@@ -92,7 +77,7 @@ def set_data_location():
     Sets location for qcodes to save data based on the
     qcodes.config.user.data_location value, the
     qc.config.user.data_format and the sample name and sets
-    data_loc_fmt in EXPERIMENT_VARS dictionary to True.
+    data_loc_fmt in global_settings.files_setup dictionary to True.
     """
     sample_name = get_sample_name()
     try:
@@ -103,7 +88,7 @@ def set_data_location():
         raise KeyError('data_location or data_format not set in config, see '
                        '"https://github.com/QCoDeS/Qcodes/blob/master'
                        '/docs/examples/Configuring_QCoDeS.ipynb"')
-    if EXPERIMENT_VARS['data_loc_fmt']:
+    if exp.files_setup['data_loc_fmt']:
         print('Data location already set at {}.\n'
               'Data file format already set as {}.'.format(dat_loc, dat_fmt))
         print('-------------------------')
@@ -112,7 +97,7 @@ def set_data_location():
             os.makedirs(dat_loc)
         loc_provider = qc.FormatLocation(fmt=dat_loc_fmt)
         qc.data.data_set.DataSet.location_provider = loc_provider
-        EXPERIMENT_VARS['data_loc_fmt'] = True
+        exp.files_setup['data_loc_fmt'] = True
         logging.info('Set data location: {}'.format(dat_loc))
         print('Set data location: {}'.format(dat_loc))
         print('-------------------------')
@@ -128,7 +113,7 @@ def get_data_location():
         sample_name if data_location set by calling set_data_location()
     """
     sample_name = get_sample_name()
-    if EXPERIMENT_VARS['data_loc_fmt']:
+    if exp.files_setup['data_loc_fmt']:
         dat_loc = qc.config.user.data_location.format(sample_name=sample_name)
         return dat_loc
     else:
@@ -142,7 +127,7 @@ def get_data_file_format():
         qc.config.user.data_format if data_location set by calling
         set_data_location()
     """
-    if EXPERIMENT_VARS['data_loc_fmt']:
+    if exp.files_setup['data_loc_fmt']:
         dat_fmt = qc.config.user.data_format
         return dat_fmt
     else:
@@ -153,7 +138,7 @@ def set_analysis_location():
     """
     Sets location for qcodes to save analysis data based on
     the qcodes.config.user.analysis_location value and sets analysis_loc
-    in EXPERIMENT_VARS dictionary to True.
+    in global_settings.files_setup dictionary to True.
     """
     sample_name = get_sample_name()
 
@@ -164,13 +149,13 @@ def set_analysis_location():
         raise KeyError('analysis_location not set in config, see '
                        '"https://github.com/QCoDeS/Qcodes/blob/master'
                        '/docs/examples/Configuring_QCoDeS.ipynb"')
-    if EXPERIMENT_VARS['analysis_loc']:
+    if exp.files_setup['analysis_loc']:
         print('Analysis location already set at {}.'.format(analysis_location))
         print('-------------------------')
     else:
         if not os.path.exists(analysis_location):
             os.makedirs(analysis_location)
-        EXPERIMENT_VARS['analysis_loc'] = True
+        exp.files_setup['analysis_loc'] = True
         logging.info('Set up analysis location: {}'.format(analysis_location))
         print('Set up analysis location: {}'.format(analysis_location))
         print('-------------------------')
@@ -184,7 +169,7 @@ def get_analysis_location():
         set_analysis_location()
     """
     sample_name = get_sample_name()
-    if EXPERIMENT_VARS['analysis_loc']:
+    if exp.files_setup['analysis_loc']:
         return qc.config.user.analysis_location.format(
             sample_name=sample_name)
     else:
@@ -196,7 +181,7 @@ def set_temp_dict_location():
     """
     Sets location for qcodes to save analysis data based on
     the qcodes.config.user.analysis_location value and sets analysis_loc
-    in EXPERIMENT_VARS dictionary to True.
+    in global_settings.files_setup dictionary to True.
     """
     sample_name = get_sample_name()
 
@@ -207,14 +192,14 @@ def set_temp_dict_location():
         raise KeyError('temp_dict_location not set in config, see '
                        '"https://github.com/QCoDeS/Qcodes/blob/master'
                        '/docs/examples/Configuring_QCoDeS.ipynb"')
-    if EXPERIMENT_VARS['temp_dict_loc']:
+    if exp.files_setup['temp_dict_loc']:
         print('Temp dictionary location already set at {}.'.format(
             temp_dict_location))
         print('-------------------------')
     else:
         if not os.path.exists(temp_dict_location):
             os.makedirs(temp_dict_location)
-        EXPERIMENT_VARS['temp_dict_loc'] = True
+        exp.files_setup['temp_dict_loc'] = True
         logging.info('Set up temp dict location: {}'.format(
             temp_dict_location))
         print('Set up temp dict location: {}'.format(temp_dict_location))
@@ -229,7 +214,7 @@ def get_temp_dict_location():
         set_analysis_location()
     """
     sample_name = get_sample_name()
-    if EXPERIMENT_VARS['temp_dict_loc']:
+    if exp.files_setup['temp_dict_loc']:
         return qc.config.user.temp_dict_location.format(
             sample_name=sample_name)
     else:
@@ -243,7 +228,7 @@ def set_log_locations():
     the qcodes.config.user.log_location value. Within this folder
     creates python_logs file and (if in notebook) creates ipython_logs
     file, starts ipython log. Sets python_log_loc and ipython_log_loc
-    in EXPERIMENT_VARS dictionary to True.
+    in global_settings.files_setup dictionary to True.
     """
     warnings.simplefilter('error', UserWarning)
 
@@ -257,7 +242,7 @@ def set_log_locations():
         raise KeyError('log_location not set in config, see '
                        '"https://github.com/QCoDeS/Qcodes/blob/master'
                        '/docs/examples/Configuring_QCoDeS.ipynb"')
-    if EXPERIMENT_VARS['python_log_loc']:
+    if exp.files_setup['python_log_loc']:
         print('Python log already started at {}.'.format(python_log_location))
         print('-------------------------')
     else:
@@ -271,10 +256,10 @@ def set_log_locations():
                             level=logging.INFO,
                             format='%(asctime)s %(levelname)s %(message)s',
                             datefmt='%Y-%m-%d_%H-%M-%S')
-        EXPERIMENT_VARS['python_log_loc'] = True
+        exp.files_setup['python_log_loc'] = True
         print('Set up python log location: {}'.format(python_log_location))
         print('-------------------------')
-    if EXPERIMENT_VARS['ipython_log_loc']:
+    if exp.files_setup['ipython_log_loc']:
         print('ipython log already started at {}.'.format(
             ipython_log_location))
         print('-------------------------')
@@ -290,7 +275,7 @@ def set_log_locations():
             try:
                 get_ipython().magic("logstart -t {} append".format(
                     ipython_logfile_name))
-                EXPERIMENT_VARS['ipython_log_loc'] = True
+                exp.files_setup['ipython_log_loc'] = True
                 print('Set up ipython log location: {}'.format(
                     ipython_log_location))
                 print('-------------------------')
@@ -306,15 +291,15 @@ def get_log_locations():
         calling get_log_locations() based on qc.config.user.log_location and
         sample_name.
     """
-    if (EXPERIMENT_VARS['python_log_loc'] or
-            EXPERIMENT_VARS['ipython_log_loc']):
+    if (exp.files_setup['python_log_loc'] or
+            exp.files_setup['ipython_log_loc']):
         logs = {}
-        sample_name = EXPERIMENT_VARS['sample_name']
+        sample_name = get_sample_name()
         log_location = abspath(qc.config.user.log_location.format(
             sample_name=sample_name))
-        if EXPERIMENT_VARS['python_log_loc']:
+        if exp.files_setup['python_log_loc']:
             logs['python_log'] = sep.join([log_location, 'python_logs', ""])
-        if EXPERIMENT_VARS['ipython_log_loc']:
+        if exp.files_setup['ipython_log_loc']:
             logs['ipython_log'] = sep.join([log_location, 'ipython_logs', ""])
         return logs
     else:
@@ -326,7 +311,7 @@ def set_pulse_location():
     """
     Sets location for qcodes to save awg pulses on
     the qcodes.config.user.pulse_location value and sets pulse_loc
-    in EXPERIMENT_VARS dictionary to True.
+    in global_settings.files_setup dictionary to True.
     """
     sample_name = get_sample_name()
 
@@ -337,13 +322,13 @@ def set_pulse_location():
         raise KeyError('pulse_location not set in config, see '
                        '"https://github.com/QCoDeS/Qcodes/blob/master'
                        '/docs/examples/Configuring_QCoDeS.ipynb"')
-    if EXPERIMENT_VARS['pulse_loc']:
+    if exp.files_setup['pulse_loc']:
         print('Pulse location already set at {}.'.format(pulse_location))
         print('-------------------------')
     else:
         if not os.path.exists(pulse_location):
             os.makedirs(pulse_location)
-        EXPERIMENT_VARS['pulse_loc'] = True
+        exp.files_setup['pulse_loc'] = True
         logging.info('Set up pulse location: {}'.format(pulse_location))
         print('Set up pulse location: {}'.format(pulse_location))
         print('-------------------------')
@@ -356,7 +341,7 @@ def get_pulse_location():
         and sample_name if pulse_location set by calling set_pulse_location()
     """
     sample_name = get_sample_name()
-    if EXPERIMENT_VARS['pulse_loc']:
+    if exp.files_setup['pulse_loc']:
         return qc.config.user.pulse_location.format(
             sample_name=sample_name)
     else:
