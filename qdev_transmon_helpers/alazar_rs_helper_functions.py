@@ -249,7 +249,7 @@ def set_cavity_from_calib_dict(cavity, localos, acq_ctrls, num_avg=1000):
                           cav_freq=get_calibration_val('cavity_freq'))
 
 
-def sweep_2d_ssb(qubit, acq_ctrl, centre_freq, sweep_param,
+def sweep2d_ssb(qubit, acq_ctrl, centre_freq, sweep_param,
                  start, stop, step, delay=0.01, live_plot=True,
                  key=None, save=True):
     """

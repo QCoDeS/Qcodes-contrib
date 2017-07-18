@@ -4,7 +4,7 @@ import datetime
 
 from . import do_cavity_freq_sweep, find_extreme, set_calibration_val, \
     set_single_demod_freq, get_calibration_val, set_up_sequence, \
-    sweep1d, measure, measure_ssb, sweep_2d_ssb, check_seq_uploaded, get_demod_freq
+    sweep1d, measure, measure_ssb, sweep2d_ssb, check_seq_uploaded, get_demod_freq
 
 from .sequencing import make_spectroscopy_SSB_sequence, make_rabi_sequence, \
     make_t1_sequence, make_ramsey_sequence
@@ -17,11 +17,14 @@ from .sequencing import make_spectroscopy_SSB_sequence, make_rabi_sequence, \
 # TODO: write calibrate pi pulse, get_t1, get_t2s, do_ramsey
 # TODO: add rabis, t1, t2 and anharmonicity option to tracking sweeps
 # TODO: drag
+# TODO: 1 million kwargs to **kwargs
+# TODO: check seq uploaded in automated cavity calibration (and then remove from script)
+# TODO: docstrings
 
 
 def calibrate_cavity(cavity, localos, acq_ctrl, alazar, centre_freq=None,
                      demod_freq=None, calib_update=True, cavity_pow=None,
-                     localos_pow=None, detuning=3e5, live_plot=True):
+                     localos_pow=None, detuning=3e5, live_plot=True, qubit_index=None):
     """
     Automation function which sweeps the cavity and then detunes sets the
     cavity and local oscillator frequency for readout.
@@ -64,10 +67,14 @@ def calibrate_cavity(cavity, localos, acq_ctrl, alazar, centre_freq=None,
         data, x_key="frequency_set", y_key="mag", extr="min")
     good_cavity_freq = cavity_res + detuning
     if calib_update:
-        set_calibration_val('cavity_freq', good_cavity_freq)
-        set_calibration_val('cavity_pow', cavity_pow or cavity.power())
-        set_calibration_val('demod_freq', good_demod_freq)
-        set_calibration_val('localos_pow', localos_pow or localos.power())
+        set_calibration_val('cavity_freq', good_cavity_freq,
+            qubit_index=qubit_index)
+        set_calibration_val('cavity_pow', cavity_pow or cavity.power(),
+            qubit_index=qubit_index)
+        set_calibration_val('demod_freq', good_demod_freq
+            qubit_index=qubit_index)
+        set_calibration_val('localos_pow', localos_pow or localos.power()
+            qubit_index=qubit_index)
     set_single_demod_freq(cavity, localos, [acq_ctrl], good_demod_freq,
                           cav_freq=good_cavity_freq)
     alazar.seq_mode(alazar_mode)
@@ -101,16 +108,17 @@ def find_qubit(awg, alazar, acq_ctrl, qubit, start_freq=4e9, stop_freq=6e9,
             resonator
         qubit_mag: the magnitude of this response
     """
+    old_power = qubit.power()
+    old_seq_mode = alazar.seq_mode()
     seq_uploaded = check_seq_uploaded(
         awg, 'spectroscopy', {'pulse_mod': pulse_mod},
         start=0, stop=200e-6, step=1e-6)
     if not seq_uploaded:
         ssb_seq = make_spectroscopy_SSB_sequence(
             0, 200e-6, 1e-6, channels=channels, pulse_mod=pulse_mod)
-        set_up_sequence(awg, alazar, [acq_ctrl], ssb_seq, seq_mode=1)
+        set_up_sequence(awg, alazar, [acq_ctrl], ssb_seq, seq_mode='on')
     else:
-        alazar.seq_mode(1)
-    old_power = qubit.power()
+        alazar.seq_mode('on')
     if qubit_power is None:
         qubit_power = get_calibration_val('spec_pow')
     qubit.status('on')
@@ -129,8 +137,9 @@ def find_qubit(awg, alazar, acq_ctrl, qubit, start_freq=4e9, stop_freq=6e9,
         set_calibration_val('qubit_freq', qubit_freq)
         set_calibration_val('spec_pow', qubit_power)
     qubit.power(old_power)
+    alazar.seq_mode (old_seq_mode)
     print('qubit found at {}, mag {}'.format(qubit_freq, qubit_mag))
-    return qubit_freq, qubit_mag
+    return qubit_freq
 
 
 def do_tracking_ssb_time_sweep(qubit, cavity, time_param, localos,
@@ -177,7 +186,7 @@ def do_tracking_ssb_time_sweep(qubit, cavity, time_param, localos,
         qubit_freq, mag = find_qubit(awg, alazar, rec_acq_ctrl, qubit)
         start = time.clock()
         stop = start + inner_loop_time
-        data, plots = sweep_2d_ssb(qubit, rec_acq_ctrl, qubit_freq, time_param,
+        data, plots = sweep2d_ssb(qubit, rec_acq_ctrl, qubit_freq, time_param,
                                    start, stop, inner_loop_delay_step,
                                    delay=inner_loop_delay_step, key="mag")
         time.sleep(outer_loop_delay)
