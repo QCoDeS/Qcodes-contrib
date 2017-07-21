@@ -48,7 +48,7 @@ def import_decadac(port=5, station=None, chan_count=None, all_chans_0=False):
     return dec_slots, dec_chans
 
 
-def import_yoko(visa_address, name='yoko', station=None):
+def import_yoko(visa_address, name='gate', station=None):
     from qcodes.instrument_drivers.yokogawa.GS200 import GS200
     yoko = GS200(name, visa_address)
     yoko.voltage.set_step(0.05)
@@ -56,16 +56,17 @@ def import_yoko(visa_address, name='yoko', station=None):
     if station is not None:
         station.add_component(yoko)
     logging.info('imported yoko GS200: \'{}\''.format(name))
-    print('imported yoko ZNB20: \'{}\''.format(name))
+    print('imported yoko GS200: \'{}\''.format(name))
     print('-------------------------')
     return yoko
 
 
 def import_vna(visa_address, name='vna', station=None):
-    from qcodes.instrument_drivers.rohde_schwarz.ZNB20 import ZNB20
-    vna = ZNB20(name, visa_address)
+    import qcodes.instrument_drivers.rohde_schwarz.ZNB as ZNB
+    vna = ZNB.ZNB(name, visa_address, init_s_params=False)
     if station is not None:
         station.add_component(vna)
+    vna.add_channel('S21')
     logging.info('imported VNA ZNB20: \'{}\''.format(name))
     print('imported VNA ZNB20: \'vna\''.format(name))
     print('-------------------------')

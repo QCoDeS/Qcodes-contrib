@@ -12,5 +12,5 @@ from .helpers import *
 from .basic import *
 from .allxy import *
 from .benchmarking import *
-# from .floquet import *
+from .floquet_new import *
 # from .legacy import *

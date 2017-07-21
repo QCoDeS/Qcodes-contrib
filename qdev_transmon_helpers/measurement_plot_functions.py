@@ -1,6 +1,7 @@
 import qcodes as qc
 from . import get_title
 
+# TODO: names, full names and all the fun you didn't know you were missing
 
 def plot_data(data, key=None, matplot=False):
     """
@@ -69,10 +70,13 @@ def plot_data_single_window(dataset, meas_param, key=None):
     else:
         title = ""
     plot_array_names = []
-    for array_name in meas_param.names:
+    if hasattr(meas_param, 'full_names'):
+        for array_name in meas_param.full_names:
+            if (key is None) or (key in array_name):
+                plot_array_names.append(array_name)
+    elif hasattr(meas_param, 'full_name'):
         if (key is None) or (key in array_name):
-            plot_array_names.append("{}_{}".format(meas_param._instrument.name,
-                                                   array_name))
+            plot_array_names.append(meas_param.full_name)
     if len(plot_array_names) == 0:
         raise KeyError('key: {} not in parameter array '
                        'names: {}'.format(key,

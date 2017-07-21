@@ -137,8 +137,8 @@ def set_single_demod_freq(cavity, localos, acq_ctrls, demod_freq,
     """
     cavity.status('on')
     localos.status('on')
-    if cav_freq is not None:
-        cavity.frequency(cav_freq)
+    if cavity_freq is not None:
+        cavity.frequency(cavity_freq)
     else:
         cavity_freq = cavity.frequency()
     localos.frequency(cavity_freq + demod_freq)
@@ -159,7 +159,7 @@ def set_demod_freqs(cavity_list, localos, aqc_ctrls,
         if len(cavity_freqs) != len(cavity_list):
             raise Exception('cavity freqd list length not equal to cavity list length')
         demod_freqs = [localos_freq - c for c in cavity_freqs]
-    else
+    else:
         demod_freqs = [localos_freq - c.frequency() for c in cavity_list]
         cavity_freqs = [None] * len(cavity_list)
     for ctrl in acq_ctrls:

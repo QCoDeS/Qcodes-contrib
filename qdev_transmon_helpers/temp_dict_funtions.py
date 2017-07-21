@@ -132,7 +132,10 @@ def set_calibration_val(key, qubit_value, qubit_index=None):
         vals = copy.copy(c_dict[key])
     else:
         vals = np.zeros(get_qubit_count())
-    vals[qubit_index or c_dict['current_qubit']] = qubit_value
+    if qubit_index is not None:
+        vals[qubit_index] = qubit_value
+    else:
+        vals[c_dict['current_qubit']] = qubit_value
     _update_calibration_dict({key: vals})
 
 
@@ -183,7 +186,10 @@ def get_calibration_val(key, qubit_index=None):
         qubit_value
     """
     c_dict = get_calibration_dict()
-    return c_dict[key][qubit_index or c_dict['current_qubit']]
+    if qubit_index is not None:
+        return c_dict[key][qubit_index]
+    else:
+        return c_dict[key][c_dict['current_qubit']]
 
 
 def get_calibration_array(key):

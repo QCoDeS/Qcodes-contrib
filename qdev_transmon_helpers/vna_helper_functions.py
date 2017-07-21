@@ -12,7 +12,7 @@ faster and easier.
 
 def sweep2d_vna(v1, startf, stopf, stepf,
                 sweep_param2, start2, stop2, step2,
-                delay=0.01, key="mag", save=True):
+                delay=0.01, save=True):
     """
     Function which fakes doing a 2d sweep by setting up the vna to
     do a 'hard' frequency sweep over the given range and then executing
@@ -34,12 +34,12 @@ def sweep2d_vna(v1, startf, stopf, stepf,
     Returns:
         dataset, plot
     """
-    v1.start21(startf)
-    v1.stop21(stopf)
+    v1.channels.S21.start(startf)
+    v1.channels.S21.stop(stopf)
     npts = int((stopf - startf) / stepf + 1)
-    v1.npts21(npts)
-    dataset, plot = sweep1d(v1.trace21, sweep_param2, start2, stop2, step2,
-                            delay=delay, key="mag", save=save)
+    v1.channels.S21.npts(npts)
+    dataset, plot = sweep1d(v1.channels.S21.trace, sweep_param2, start2, stop2, step2,
+                            delay=delay, save=save)
     return dataset, plot
 
 

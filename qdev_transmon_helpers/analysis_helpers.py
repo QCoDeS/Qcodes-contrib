@@ -108,8 +108,8 @@ def get_resonator_push(dataset, x_key="freq", y_key="pow", z_key="mag"):
         mag_arrays = next(getattr(dataset, key)
                          for key in dataset.arrays.keys() if z_key in key)
     except Exception:
-        raise Exception('could not get {} and {} arrays from dataset, check dataset '
-                       'has these keys array names'.format(x_key, y_key))
+        raise Exception('could not get {}, {} and {} arrays from dataset, check dataset '
+                       'has these keys array names'.format(x_key, y_key, z_key))
     mag_high = mag_arrays[0]
     mag_low = mag_arrays[-1]
     smoothed_mag_low = smooth_data_SG(mag_low, 15, 6)
@@ -370,6 +370,7 @@ def get_t1(data, x_name='delay', y_name='magnitude',
         ax.plot(x_data, y_data, label='data')
         ax.set_xlabel('{} ({})'.format(x_name, x_units))
         ax.set_ylabel('{} ({})'.format(y_name, y_units))
+        ax.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
         ax.set_title(title)
         ax.legend(loc='upper right', fontsize=10)
         save_fig(ax, name=name)
