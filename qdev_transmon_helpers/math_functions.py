@@ -230,7 +230,7 @@ def cos_multi_array(freq_list, amp, dur, SR, positive=True):
     for i, freq in enumerate(freq_list):
             angle = t * freq * 2 * np.pi
             y +=  prefactor * np.cos(angle)
-    return y
+    return y / len(freq_list)
 
 def sin_array(freq, amp, dur, SR, positive=True):
     points = int(SR * dur)
@@ -247,4 +247,4 @@ def sin_multi_array(freq_list, amp, dur, SR, positive=True):
     for i, freq in enumerate(freq_list):
             angle = t * freq * 2 * np.pi
             y +=  prefactor * np.sin(angle)
-    return y
+    return y / len(freq_list)

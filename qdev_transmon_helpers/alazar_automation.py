@@ -76,7 +76,7 @@ def calibrate_cavity(cavity, localos, acq_ctrl, alazar, centre_freq=None,
                             qubit_index=qubit_index)
         set_calibration_val('localos_pow', localos_pow or localos.power(),
                             qubit_index=qubit_index)
-    set_single_demod_freq(cavity, localos, [acq_ctrl], good_demod_freq,
+    set_single_demod_freq(cavity, localos, [acq_ctrl], demod_freq=good_demod_freq,
                           cavity_freq=good_cavity_freq)
     alazar.seq_mode(alazar_mode)
     print('cavity_freq set to {}, mag = {}'.format(good_cavity_freq, mag))

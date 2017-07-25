@@ -128,8 +128,6 @@ def set_single_demod_freq(cavity, localos, acq_ctrls, demod_freq=None,
         raise Exception('Set up demodulation by setting max 2 out of '
                         '[demod_freq, cavity_freq, localos_freq], not all '
                         'three')
-    cavity.status('on')
-    localos.status('on')
     if localos_freq is None:
         if cavity_freq is None:
             cavity_freq = cavity.frequency()
@@ -152,6 +150,8 @@ def set_single_demod_freq(cavity, localos, acq_ctrls, demod_freq=None,
     for ctrl in acq_ctrls:
         remove_demod_freqs(ctrl)
         ctrl.demod_freqs.add_demodulator(demod_freq)
+    cavity.status('on')
+    localos.status('on')
 
 
 def set_demod_freqs(cavity_list, localos, acq_ctrls,
@@ -159,7 +159,7 @@ def set_demod_freqs(cavity_list, localos, acq_ctrls,
                     demod_freqs=None):
     if all([i is not None for
             i in [demod_freqs, cavity_freqs, localos_freq]]):
-        raise Exception('Set up demodulation by settin max 2 out of '
+        raise Exception('Set up demodulation by setting max 2 out of '
                         '[demod_freqs, cavity_freqs, localos_freq], not all '
                         'three')
     if any(i is not None for i in [demod_freqs, cavity_freqs]):
@@ -170,7 +170,6 @@ def set_demod_freqs(cavity_list, localos, acq_ctrls,
                 'and demod_freqs lengths: {}'.format(
                     [length, len(cavity_freqs), len(demod_freqs)]))
 
-    localos.status('on')
     if all([i is not None for i in [cavity_freqs, demod_freqs]]):
         localos_freq = cavity_freqs[0] + demod_freqs[0]
         for i, cav_f in enumerate(cavity_freqs):
@@ -200,56 +199,72 @@ def set_demod_freqs(cavity_list, localos, acq_ctrls,
         cav.status('on')
         for ctrl in acq_ctrls:
             ctrl.demod_freqs.add_demodulator(demod_freqs[i])
+    localos.status('on')
 
 
-# def set_demod_freqs_SSB(cavity, localos, acq_ctrls,
-#                         localos_freq=None, cavity_freq=None,
-#                         demod_freqs=None, SSBfreqs=None):
-#     if all([i is not None for
-#             i in [demod_freqs, cavity_freq, localos_freq, SSBfreqs]]):
-#         raise Exception('Set up demodulation by settin max 2 out of '
-#                         '[demod_freqs, SSBfreqs, cavity_freq, localos_freq], '
-#                         'not all three')
-#     elif not any([i is not None for i in demod_freqs, SSBfreqs]):
-#         raise Exception('Must set one from demod_freqs and SSBfreqs')
+def set_demod_freqs_SSB(cavity, localos, acq_ctrls, SSBfreqs,
+                        localos_freq=None, cavity_freq=None,
+                        demod_freqs=None):
+    if all([i is not None for
+            i in [demod_freqs, cavity_freq, localos_freq]]):
+        raise Exception('Set up demodulation by setting max 2 out of '
+                        '[demod_freqs, cavity_freq, localos_freq], '
+                        'not all three')
+    if demod_freqs is not None:
+        if len(demod_freqs) != len(SSBfreqs):
+            raise Exception(
+                'demod_freqs list length not equal to SSBfreqs freqs list '
+                'length: {}'.format(
+                    [len(demod_freqs), len(SSBfreqs)]))
 
-#     localos.status('on')
-#     cavity.status('on')
+    if localos_freq is None:
+        if cavity_freq is None:
+            cavity_freq = cavity.frequency()
+        else:
+            cavity.frequency(cavity_freq)
+        if demod_freqs is None:
+            localos_freq = localos.frequency()
+            demod_freqs = [(localos_freq - (cavity_freq + SSBfreq))
+                           for SSBfreq in SSBfreqs]
+        else:
+            localos_freq = cavity_freq - SSBfreqs[0] + demod_freqs[0]
+            for i, SSBfreq in enumerate(SSBfreqs):
+                if cavity_freq - SSBfreq + demod_freqs[i] != localos_freq:
+                    raise Exception(
+                        'SSB frequencies and demod frequencies set'
+                        ' but these do not all correspond to the same value for '
+                        'the local oscillator and cavity. This is unphsyical')
+            localos.frequency(localos_freq)
+    elif cavity_freq is None:
+        localos.frequency(localos_freq)
+        if demod_freqs is None:
+            cavity_freq = cavity.frequency()
+            demod_freqs = [(localos_freq - (cavity_freq + SSBfreq))
+                           for SSBfreq in SSBfreqs]
+        else:
+            cavity_freq = localos_freq + SSBfreqs[0] - demod_freqs[0]
+            for i, SSBfreq in enumerate(SSBfreqs):
+                if cavity_freq - SSBfreq + demod_freqs[i] != localos_freq:
+                    raise Exception(
+                        'SSB frequencies and demod frequencies set'
+                        ' but these do not all correspond to the same value for '
+                        'the local oscillator and cavity. This is unphsyical')
+            cavity.frequency(cavity_freq)
+    else:
+        cavity.frequency(cavity_freq)
+        localos.frequency(localos_freq)
+        demod_freqs = [(localos_freq - (cavity_freq + SSBfreq))
+                           for SSBfreq in SSBfreqs]
 
-#     if localos_freq is None:
-#         if cavity_freq is None:
-#             cavity_freq = cavity.frequency()
-#         if demod_freqs is None:
-#             localos_freq = localos.frequency()
-#             demod_freqs = [(localos_freq - cavity_freq + SSBfreqs[i])
-#                            for i in range(freq_count)]
-#         elif SSBfreqs is None:
-#             SSBfreqs = [0] * freq_count
-#         else:
-#             localos.frequency()
+    for ctrl in acq_ctrls:
+        remove_demod_freqs(ctrl)
 
-#     if localos_freq is not None:
-#         localos.frequency(localos_freq)
-#     else:
-#         localos_freq = localos.frequency()
+    for i, demod_freq in enumerate(demod_freqs):
+        for ctrl in acq_ctrls:
+            ctrl.demod_freqs.add_demodulator(demod_freqs[i])
+    localos.status('on')
+    cavity.status('on')
 
-#     if cavity_freqs is not None:
-#         if len(cavity_freqs) != len(cavity_list):
-#             raise Exception(
-#                 'cavity freq list length not equal to cavity list length')
-#         demod_freqs = [localos_freq - c for c in cavity_freqs]
-#     else:
-#         demod_freqs = [localos_freq - c.frequency() for c in cavity_list]
-#         cavity_freqs = [None] * len(cavity_list)
-#     for ctrl in acq_ctrls:
-#         remove_demod_freqs(ctrl)
-
-#     for i, cav in enumerate(cavity_list):
-#         cav.status('on')
-#         if cavity_freqs[i] is not None:
-#             cav.frequency(cavity_freqs[i])
-#         for ctrl in acq_ctrls:
-#             ctrl.demod_freqs.add_demodulator(demod_freqs[i])
 
 
 def remove_demod_freqs(acq_ctrl):
