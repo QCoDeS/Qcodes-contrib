@@ -97,7 +97,7 @@ def set_alazar_seq_mode(alazar, mode):
         raise ValueError('must set seq mode to "on" or "off"')
 
 
-def get_demod_freq(cavity, localos, acq_ctrl):
+def get_demod_freq(cavity, localos, acq_ctrl, SSBfreq=0):
     """
     Gets demodulation frequency based on cavity and
     local oscilator and checks that aqc controller is demodulating
@@ -112,7 +112,7 @@ def get_demod_freq(cavity, localos, acq_ctrl):
         demod freq
     """
     lo, cav = localos.frequency(), cavity.frequency()
-    demod = lo - cav
+    demod = lo - (cav - SSBfreq)
     acq_freqs = acq_ctrl.demod_freqs()
     if demod not in acq_freqs:
         raise Exception('demod freq {} (from cavity freq {} and localos '
@@ -346,7 +346,7 @@ def set_cavity_from_calib_dict(cavity, localos, acq_ctrls, num_avg=1000):
     localos.power(get_calibration_val('localos_pow'))
     set_single_demod_freq(cavity, localos, acq_ctrls,
                           get_calibration_val('demod_freq'),
-                          cav_freq=get_calibration_val('cavity_freq'))
+                          cavity_freq=get_calibration_val('cavity_freq'))
 
 
 def sweep2d_ssb(qubit, acq_ctrl, centre_freq, sweep_param,

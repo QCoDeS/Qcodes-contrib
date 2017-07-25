@@ -61,7 +61,7 @@ def import_yoko(visa_address, name='gate', station=None):
     return yoko
 
 
-def import_vna(visa_address, name='vna', station=None):
+def import_vna(visa_address, name='vna', station=None, timeout=40):
     import qcodes.instrument_drivers.rohde_schwarz.ZNB as ZNB
     vna = ZNB.ZNB(name, visa_address, init_s_params=False)
     if station is not None:

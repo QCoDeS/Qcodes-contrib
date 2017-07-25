@@ -22,7 +22,7 @@ def make_readout_single_sequence(channels=[4]):
     qubit = calib_dict['current_qubit']
     seq = Sequence(name='readout_seq')
     element = Element(sample_rate=calib_dict['sample_rate'][qubit])
-    readout_wf = make_readout_wf(first_in_sequence=True, channel=channels[0])
+    readout_wf = make_readout_wf(first_in_seq=True, channel=channels[0])
     element.add_waveform(readout_wf)
     seq.add_element(element)
     seq.labels = {'seq_type': 'readout'}
@@ -34,9 +34,9 @@ def make_readout_SSB_single_sequence(freq_list, channels=[3, 4]):
     calib_dict = get_calibration_dict()
     qubit = calib_dict['current_qubit']
     element = Element(sample_rate=calib_dict['sample_rate'][qubit])
-    readout_wf_I = make_readout_ssb_wf_I(freq_list, first_in_sequence=True,
-                                         channels=channels[0])
-    readout_wf_Q = make_readout_ssb_wf_Q(freq_list, channels=channels[1])
+    readout_wf_I = make_readout_ssb_wf_I(freq_list, first_in_seq=True,
+                                         channel=channels[0])
+    readout_wf_Q = make_readout_ssb_wf_Q(freq_list, channel=channels[1])
     element.add_waveform(readout_wf_I)
     element.add_waveform(readout_wf_Q)
     seq.add_element(element)
@@ -375,7 +375,7 @@ def _make_t1_carrier_sequence(start, stop, step, pi_dur=None, pi_amp=None,
     return t1_sequence
 
 
-def _make_t1_SSB_sequence(start, stop, step, SSBfreq, pi_dur=None,
+def _make_t1_SSB_sequence(start, stop, step, SSBfreq,
                           pi_amp=None, channels=[1, 2, 4], gaussian=True,
                           pulse_mod=False):
     calib_dict = get_calibration_dict()
@@ -398,7 +398,7 @@ def _make_t1_SSB_sequence(start, stop, step, SSBfreq, pi_dur=None,
         name='compensating_wait', gen_func=flat_array, func_args={'amp': 0})
 
     if gaussian:
-        pi_sigma = pi_dur or calib_dict['pi_pulse_sigma'][qubit]
+        pi_sigma = calib_dict['pi_pulse_sigma'][qubit]
         pi_I_segment = Segment(
             name='gaussian_SSB_pi_I_pulse', gen_func=cos_gaussian_array,
             func_args={
@@ -484,7 +484,7 @@ def make_t1_sequence(start, stop, step, SSBfreq=None, pi_dur=None,
 
 
 def _make_ramsey_carrier_sequence(start, stop, step, pi_half_amp=None,
-                                  pi_half_dur=None, channels=[1, 4],
+                                  channels=[1, 4],
                                   pulse_mod=False, gaussian=True):
     calib_dict = get_calibration_dict()
     qubit = calib_dict['current_qubit']
@@ -504,13 +504,13 @@ def _make_ramsey_carrier_sequence(start, stop, step, pi_half_amp=None,
         name='compensating_wait', gen_func=flat_array, func_args={'amp': 0})
 
     if gaussian:
-        pi_half_sigma = pi_half_dur or calib_dict['pi_half_pulse_sigma'][qubit]
+        pi_half_sigma = calib_dict['pi_pulse_sigma'][qubit]
         pi_half_segment = Segment(
             name='gaussian_pi_pulse', gen_func=gaussian_array,
             func_args={'sigma_cutoff': calib_dict['sigma_cutoff'][qubit],
                        'amp': pi_half_amp, 'sigma': pi_half_sigma})
     else:
-        pi_half_dur = pi_half_dur or calib_dict['pi_half_pulse_dur'][qubit]
+        pi_half_dur = calib_dict['pi_pulse_dur'][qubit]
         pi_half_segment = Segment(
             name='square_pi_pulse', gen_func=flat_array,
             func_args={'amp': pi_half_amp, 'dur': pi_half_dur})
@@ -549,7 +549,7 @@ def _make_ramsey_carrier_sequence(start, stop, step, pi_half_amp=None,
 
 
 def _make_ramsey_SSB_sequence(start, stop, step, SSBfreq, pi_half_amp=None,
-                              pi_half_dur=None, channels=[1, 2, 4],
+                              channels=[1, 2, 4],
                               pulse_mod=False, gaussian=True):
     calib_dict = get_calibration_dict()
     qubit = calib_dict['current_qubit']
@@ -571,7 +571,7 @@ def _make_ramsey_SSB_sequence(start, stop, step, SSBfreq, pi_half_amp=None,
         name='compensating_wait', gen_func=flat_array, func_args={'amp': 0})
 
     if gaussian:
-        pi_half_sigma = pi_half_dur or calib_dict['pi_half_pulse_sigma'][qubit]
+        pi_half_sigma = calib_dict['pi_pulse_sigma'][qubit]
         pi_half_I_segment = Segment(
             name='gaussian_SSB_pi_half_I_pulse', gen_func=cos_gaussian_array,
             func_args={'sigma_cutoff': calib_dict['sigma_cutoff'][qubit],
@@ -583,7 +583,7 @@ def _make_ramsey_SSB_sequence(start, stop, step, SSBfreq, pi_half_amp=None,
                        'amp': pi_half_amp, 'SSBfreq': SSBfreq,
                        'sigma': pi_half_sigma, 'positive': False})
     else:
-        pi_half_dur = pi_half_dur or calib_dict['pi_half_pulse_sigma'][qubit]
+        pi_half_dur = calib_dict['pi_pulse_dur'][qubit]
         pi_half_I_segment = Segment(
             name='square_SSB_pi_half_I_pulse', gen_func=cos_array,
             func_args={'amp': pi_half_amp, 'freq': SSBfreq,
@@ -632,7 +632,7 @@ def _make_ramsey_SSB_sequence(start, stop, step, SSBfreq, pi_half_amp=None,
 
 
 def make_ramsey_sequence(start, stop, step, SSBfreq=None, pi_half_amp=None,
-                         pi_half_dur=None, channels=[1, 2, 4],
+                          channels=[1, 2, 4],
                          pulse_mod=False, gaussian=True):
     if SSBfreq is not None:
         if len(channels) < 3:
@@ -640,13 +640,12 @@ def make_ramsey_sequence(start, stop, step, SSBfreq=None, pi_half_amp=None,
                             'sequence for I, Q and readout')
         seq = _make_ramsey_SSB_sequence(
             start, stop, step, SSBfreq, channels=channels, pulse_mod=pulse_mod,
-            pi_half_amp=pi_half_amp, pi_half_dur=pi_half_dur,
+            pi_half_amp=pi_half_amp,
             gaussian=gaussian)
     else:
         if len(channels) < 2:
             raise Exception('at least 2 channels needed for drive and readout')
         seq = _make_ramsey_carrier_sequence(
             start, stop, step, channels=[channels[0], channels[-1]],
-            pulse_mod=pulse_mod, pi_half_amp=pi_half_amp,
-            pi_half_dur=pi_half_dur, gaussian=gaussian)
+            pulse_mod=pulse_mod, pi_half_amp=pi_half_amp, gaussian=gaussian)
     return seq

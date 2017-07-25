@@ -83,7 +83,7 @@ def plot_data_single_window(dataset, meas_param, key=None):
                                           list(meas_param.names)))
     plot = qc.QtPlot(figsize=(700 * len(plot_array_names), 500))
     for i, plot_array_name in enumerate(plot_array_names):
-        plot.add(getattr(dataset, plot_array_name), subplot=i)
+        plot.add(getattr(dataset, plot_array_name), subplot=i+1)
         plot.subplots[i].showGrid(True, True)
     plot.subplots[0].setTitle(title)
     return plot

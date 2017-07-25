@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
 from scipy import signal
 from . import exp_decay, exp_decay_sin, get_calibration_dict, get_title, \
     save_fig, smooth_data_butter, smooth_data_SG, plot_cf_data, \
@@ -161,7 +162,7 @@ def get_resonator_push(dataset, x_key="freq", y_key="pow", z_key="mag"):
         fig.data_num = dataset.location_provider.counter
         print('dataset has no data_num set: {}'.format(e))
 
-    return low_res, fig
+    return low_res, high_res, fig
 
 ###########################
 # Alazar
