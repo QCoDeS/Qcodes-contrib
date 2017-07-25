@@ -2,7 +2,7 @@ from . import make_readout_wf, get_calibration_dict, \
     make_time_varying_sequence, make_multi_varying_sequence, \
     make_time_multi_varying_sequence, \
     cos_array, sin_array, flat_array, gaussian_array, cos_gaussian_array, \
-    sin_gaussian_array
+    sin_gaussian_array, make_readout_ssb_wf_I, make_readout_ssb_wf_Q
 from . import Segment, Waveform, Element, Sequence
 
 # TODO: T2 echo
@@ -18,6 +18,8 @@ from . import Segment, Waveform, Element, Sequence
 
 
 def make_readout_single_sequence(channels=[4]):
+    calib_dict = get_calibration_dict()
+    qubit = calib_dict['current_qubit']
     seq = Sequence(name='readout_seq')
     element = Element(sample_rate=calib_dict['sample_rate'][qubit])
     readout_wf = make_readout_wf(first_in_sequence=True, channel=channels[0])
@@ -29,6 +31,8 @@ def make_readout_single_sequence(channels=[4]):
 
 def make_readout_SSB_single_sequence(freq_list, channels=[3, 4]):
     seq = Sequence(name='readout_SSB_seq')
+    calib_dict = get_calibration_dict()
+    qubit = calib_dict['current_qubit']
     element = Element(sample_rate=calib_dict['sample_rate'][qubit])
     readout_wf_I = make_readout_ssb_wf_I(freq_list, first_in_sequence=True,
                                          channels=channels[0])
@@ -38,6 +42,7 @@ def make_readout_SSB_single_sequence(freq_list, channels=[3, 4]):
     seq.add_element(element)
     seq.labels = {'seq_type': 'readout_SSB', 'freq_list': freq_list}
     return seq
+
 
 def make_calib_SSB_single_sequence(freq, amp=1, dur=None, channels=[1, 2]):
     calib_dict = get_calibration_dict()
@@ -61,28 +66,32 @@ def make_calib_SSB_single_sequence(freq, amp=1, dur=None, channels=[1, 2]):
 # Readout SSB sweep
 ################################################################
 
+
 def make_readout_SSB_sequence(start, stop, step, channels=[3, 4]):
     if len(channels) < 2:
         raise Exception('2 channels needed for single sideband sequence for'
                         ' I and Q')
+    calib_dict = get_calibration_dict()
+    qubit = calib_dict['current_qubit']
     element = Element(sample_rate=calib_dict['sample_rate'][qubit])
-    readout_wf_I = make_readout_ssb_wf_I([freq], channels=channels[0])
-    readout_wf_Q = make_readout_ssb_wf_Q([freq], channels=channels[1])
+    readout_wf_I = make_readout_ssb_wf_I([1e-6], channels=channels[0])
+    readout_wf_Q = make_readout_ssb_wf_Q([1e-6], channels=channels[1])
     element.add_waveform(readout_wf_I)
     element.add_waveform(readout_wf_Q)
     marker_points = int(calib_dict['marker_time'][qubit] *
                         calib_dict['sample_rate'][qubit])
-    seq = make_multi_varying_sequence(    
+    seq = make_multi_varying_sequence(
         element, channels[0], 1, 'freq', start, stop, step,
         channels[1], 1, 'freq', start, stop, step, name="reabout_SSB_sequence",
         variable_name='LSB_drive_detuning', variable_unit='Hz',
         readout_ch=channels[1], marker_points=marker_points)
     seq.labels = {'seq_type': 'readout_SSB'}
-    return ssb_seq
+    return seq
 
 ################################################################
 # Spectroscopy
 ################################################################
+
 
 def make_spectroscopy_SSB_sequence(start, stop, step, channels=[1, 2, 4],
                                    pulse_mod=False):

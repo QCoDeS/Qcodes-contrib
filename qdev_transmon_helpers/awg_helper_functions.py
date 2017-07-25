@@ -1,6 +1,6 @@
-# import numpy as np
+import qcodes as qc
 import pickle
-from . import get_latest_counter, \
+from . import plot_data_single_window, plot_data, \
     get_calibration_val, get_pulse_location
 
 # TODO: rount -> int/ciel
@@ -64,3 +64,34 @@ def check_seq_uploaded(awg, seq_type, dict_to_check,
     except AttributeError:
         return False
     return True
+
+
+def sweep_awg_chans(meas_param, awg_ch_1, awg_ch_2, start, stop, step,
+                    delay=0.01, live_plot=True, key=None, save=True):
+    loop = qc.Loop(awg_ch_1.sweep(start, stop, step)).each(
+        qc.Task(awg_ch_2.set, awg_ch_1.get),
+        meas_param)
+    if live_plot:
+        dataset = loop.get_data_set()
+        dataset.data_num = dataset.location_provider.counter
+        plot = plot_data_single_window(dataset, meas_param, key=key)
+        try:
+            if save:
+                _ = loop.with_bg_task(plot.update, plot.save).run()
+            else:
+                _ = loop.with_bg_task(plot.update).run()
+                print('warning: plots not saved, if you want to save this'
+                      'plot run plot.save()')
+        except KeyboardInterrupt:
+            print("Measurement Interrupted")
+        return dataset, plot
+    else:
+        data = loop.run()
+        data.data_num = data.location_provider.counter
+        plots = plot_data(data, key=key)
+        if (key is not None) and save:
+            plots.save()
+        else:
+            print('warning: plots not saved. To save one choose '
+                  'and run plots[i].save()')
+        return data, plots
