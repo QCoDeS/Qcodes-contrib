@@ -1,11 +1,7 @@
-import numpy as np
-import pickle
-import os
-from . import get_calibration_dict, get_allowed_keys, gaussian_array, \
-    gaussian_derivative_array, flat_array, cos_gaussian_array, \
-    sin_gaussian_array, cos_array, sin_array, cos_multi_array, sin_multi_array
+from . import get_calibration_dict, flat_array, \
+    cos_multi_array, sin_multi_array
 
-from . import Segment, Waveform, Element, Sequence
+from . import Segment, Waveform
 
 
 def make_readout_wf(first_in_seq=False, channel=4):
@@ -49,7 +45,7 @@ def make_readout_ssb_wf_I(freq_list, first_in_seq=False, channel=3):
         name='cavity_measurement_i',
         gen_func=cos_multi_array,
         func_args={'amp': 1, 'dur': calib_dict['readout_time'][qubit],
-                   'freq_list':freq_list},
+                   'freq_list': freq_list},
         time_markers={
             1: {'delay_time': [calib_dict['marker_readout_delay'][qubit]],
                 'duration_time': [calib_dict['marker_time'][qubit]]}})
@@ -83,7 +79,7 @@ def make_readout_ssb_wf_Q(freq_list, channel=4):
         name='cavity_measurement_q',
         gen_func=sin_multi_array,
         func_args={'amp': 1, 'dur': calib_dict['readout_time'][qubit],
-                   'freq_list':freq_list, 'positive': False})
+                   'freq_list': freq_list, 'positive': False})
     time_before_readout = (calib_dict['pulse_end'][qubit] +
                            calib_dict['pulse_readout_delay'][qubit])
     time_after_readout = (calib_dict['cycle_time'][qubit] -
